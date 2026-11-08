@@ -1,0 +1,1370 @@
+# MASTER DEVELOPMENT PROMPT — CALCORA
+## Build a Next-Generation All-in-One Online Calculator Platform
+
+### ROLE & EXPERTISE
+
+Act as a world-class product designer, senior UI/UX designer, full-stack engineer, mathematics engineer, financial technology specialist, SEO strategist, and SaaS product architect.
+
+Your task is to design, develop, and launch a fully functional, production-ready online calculator platform named CALCORA.
+
+Do not build a generic calculator website.
+
+Build an exceptional calculation ecosystem that combines simplicity, functionality, mathematical accuracy, advanced features, and beautiful user experience.
+
+The platform must be better organized, easier to use, more visually appealing, and more accessible than conventional calculator websites.
+
+**Brand Name:** CALCORA
+
+**Tagline:** Every Calculation. One Beautiful Experience.
+
+**Core Mission:** Make every type of calculation accessible, accurate, instant, and effortless.
+
+---
+
+# 1. PRODUCT VISION
+
+Create a comprehensive online calculator platform for:
+
+- Students.
+- Teachers.
+- Professionals.
+- Business owners.
+- Freelancers.
+- Accountants.
+- Engineers.
+- Developers.
+- Investors.
+- Fitness enthusiasts.
+- Everyday users.
+
+Users should be able to calculate almost anything without needing multiple websites.
+
+The platform should include:
+
+1. Basic calculators.
+2. Scientific calculators.
+3. Mathematical calculators.
+4. Financial calculators.
+5. Tax calculators.
+6. BMI and health calculators.
+7. Business calculators.
+8. Marketing calculators.
+9. Date and time calculators.
+10. Unit converters.
+11. Engineering calculators.
+12. Statistics calculators.
+13. Construction calculators.
+14. Everyday utility calculators.
+
+Core product principles:
+
+- Extremely easy to use.
+- Fast and accurate.
+- Beautiful and modern UI.
+- Mobile-first experience.
+- No mandatory registration.
+- Free access to essential tools.
+- Privacy-first architecture.
+- Consistent experience.
+- Accessible to beginners and professionals.
+
+# 2. UNIQUE SELLING PROPOSITIONS (USPs)
+
+Develop these features as the main competitive advantages.
+
+## USP 1: Universal Calculator Workspace
+
+Create one universal calculator that combines:
+
+- Standard calculator.
+- Scientific calculator.
+- Advanced calculator.
+- Programmer calculator.
+- Fraction calculator.
+- Statistics calculator.
+- Graphing calculator.
+
+Allow users to switch between calculator modes without losing their calculation history.
+
+## USP 2: Instant Calculation Engine
+
+- Real-time calculations.
+- Mathematical expression parsing.
+- Automatic result updates.
+- Parentheses.
+- Fractions.
+- Decimals.
+- Percentages.
+- Exponents.
+- Square roots.
+- Trigonometric functions.
+- Logarithms.
+- Pi and Euler's number.
+
+Use a reliable mathematical parser. Never use unsafe JavaScript eval().
+
+## USP 3: Intelligent Calculation History
+
+Users can:
+
+- View previous calculations.
+- Reuse previous expressions.
+- Edit previous calculations.
+- Copy results.
+- Pin important calculations.
+- Delete individual calculations.
+- Clear history.
+- Organize calculations into sessions.
+
+Store local history without requiring an account.
+
+## USP 4: Explain My Calculation
+
+Create an optional explanation feature.
+
+Display:
+
+- Original expression.
+- Formula used.
+- Step-by-step calculation.
+- Values substituted into the formula.
+- Final result.
+
+Only show mathematically valid explanations. Never fabricate mathematical steps.
+
+## USP 5: Multi-Calculation Workspace
+
+Allow users to create multiple calculation rows simultaneously.
+
+Example:
+
+250 × 15% = Result A
+500 × 20% = Result B
+750 × 25% = Result C
+
+Support editing, comparing, copying, and exporting results.
+
+## USP 6: Smart Unit Conversion
+
+Support two-way, instant conversion across multiple units.
+
+## USP 7: Privacy-First Experience
+
+- No mandatory registration.
+- Local calculations wherever possible.
+- Local calculation history.
+- No unnecessary personal data collection.
+- Transparent privacy policy.
+
+## USP 8: Offline-Ready PWA
+
+Allow supported calculators to work offline.
+
+Implement:
+
+- Installable PWA.
+- Offline calculation engine.
+- Cached calculator pages.
+- Local history.
+- Offline-friendly interface.
+
+Clearly distinguish features that require internet access.
+
+## USP 9: Advanced Keyboard Support
+
+Support:
+
+- Number keys.
+- Mathematical operators.
+- Enter.
+- Backspace.
+- Escape.
+- Arrow navigation.
+- Keyboard shortcuts.
+
+## USP 10: Shareable Calculations
+
+Enable:
+
+- Copy result.
+- Copy expression.
+- Copy formatted explanation.
+- Export PDF.
+- Export CSV where relevant.
+- Share calculation links with explicit user consent.
+
+Never expose private calculations through public URLs automatically.
+
+---
+
+# 3. COMPLETE CALCULATOR LIBRARY
+
+Build a searchable and categorized calculator directory.
+
+Every calculator must be functional, tested, and have its own dedicated page.
+
+## A. BASIC CALCULATORS
+
+1. Standard Calculator.
+2. Percentage Calculator.
+3. Percentage Increase Calculator.
+4. Percentage Decrease Calculator.
+5. Percentage Difference Calculator.
+6. Ratio Calculator.
+7. Average Calculator.
+8. Fraction Calculator.
+9. Decimal Calculator.
+10. Rounding Calculator.
+11. Square Root Calculator.
+12. Exponent Calculator.
+13. Scientific Notation Calculator.
+14. Modulo Calculator.
+15. Random Number Generator.
+16. Prime Number Calculator.
+17. GCD Calculator.
+18. LCM Calculator.
+
+## B. SCIENTIFIC & ADVANCED MATHEMATICS
+
+1. Scientific Calculator.
+2. Algebra Calculator.
+3. Equation Solver.
+4. Quadratic Formula Calculator.
+5. Logarithm Calculator.
+6. Trigonometry Calculator.
+7. Matrix Calculator.
+8. Matrix Determinant Calculator.
+9. Derivative Calculator.
+10. Integral Calculator.
+11. Limit Calculator.
+12. Factorial Calculator.
+13. Permutation Calculator.
+14. Combination Calculator.
+15. Probability Calculator.
+16. Statistics Calculator.
+17. Standard Deviation Calculator.
+18. Variance Calculator.
+19. Mean, Median and Mode Calculator.
+20. Graphing Calculator.
+21. Complex Number Calculator.
+22. Linear Equation Calculator.
+
+## C. FINANCIAL CALCULATORS
+
+1. Loan Calculator.
+2. Mortgage Calculator.
+3. EMI Calculator.
+4. Compound Interest Calculator.
+5. Simple Interest Calculator.
+6. Investment Calculator.
+7. Savings Calculator.
+8. ROI Calculator.
+9. CAGR Calculator.
+10. Profit Margin Calculator.
+11. Markup Calculator.
+12. Discount Calculator.
+13. Credit Card Payoff Calculator.
+14. Debt Payoff Calculator.
+15. Retirement Calculator.
+16. Pension Calculator.
+17. Salary Calculator.
+18. Hourly to Annual Salary Calculator.
+19. Break-Even Calculator.
+20. Business Valuation Calculator.
+21. Net Worth Calculator.
+22. Rent vs Buy Calculator.
+23. Future Value Calculator.
+24. Present Value Calculator.
+25. Inflation Calculator.
+
+## D. TAX CALCULATORS — HIGH PRIORITY
+
+Tax calculators must be a major section of CALCORA.
+
+Build country-specific tax calculators rather than a single generic tax calculator.
+
+### General Tax Calculators
+
+1. Income Tax Calculator.
+2. Salary Tax Calculator.
+3. Personal Income Tax Calculator.
+4. Business Tax Calculator.
+5. Corporate Tax Calculator.
+6. Capital Gains Tax Calculator.
+7. Property Tax Calculator.
+8. Sales Tax Calculator.
+9. VAT Calculator.
+10. GST Calculator.
+11. Tax Bracket Calculator.
+12. Tax Refund Calculator.
+13. Tax Withholding Calculator.
+14. Effective Tax Rate Calculator.
+15. Marginal Tax Rate Calculator.
+16. Payroll Tax Calculator.
+17. Self-Employment Tax Calculator.
+18. Freelance Tax Calculator.
+19. Dividend Tax Calculator.
+20. Inheritance Tax Calculator.
+21. Stamp Duty Calculator.
+22. Import Duty Calculator.
+23. Net Salary After Tax Calculator.
+24. Gross Salary Calculator.
+25. Taxable Income Calculator.
+
+### Country-Specific Tax Calculators
+
+Initially prioritize:
+
+- United States.
+- United Kingdom.
+- Canada.
+- Australia.
+- Bangladesh.
+- India.
+- Malaysia.
+- United Arab Emirates.
+- Singapore.
+- Germany.
+
+For each country, create appropriate tax tools based on its actual tax system.
+
+Examples:
+
+**United States**
+- Federal Income Tax Calculator.
+- State Income Tax Calculator.
+- Payroll Tax Calculator.
+- Self-Employment Tax Calculator.
+- Capital Gains Tax Calculator.
+
+**United Kingdom**
+- Income Tax Calculator.
+- National Insurance Calculator.
+- VAT Calculator.
+- Corporation Tax Calculator.
+- Take-Home Salary Calculator.
+
+**Canada**
+- Federal and Provincial Income Tax Calculator.
+- GST/HST Calculator.
+- Payroll Calculator.
+
+**Australia**
+- Income Tax Calculator.
+- GST Calculator.
+- Medicare Levy Calculator.
+- Take-Home Pay Calculator.
+
+**Bangladesh**
+- Personal Income Tax Calculator.
+- Salary Tax Calculator.
+- VAT Calculator.
+- Tax Rebate Calculator.
+- Net Salary Calculator.
+
+**India**
+- Income Tax Calculator.
+- Old vs New Tax Regime Comparison.
+- GST Calculator.
+- TDS Calculator.
+
+**Malaysia**
+- PCB/MTD Salary Tax Calculator.
+- Personal Income Tax Calculator.
+- EPF Calculator.
+- SOCSO Contribution Calculator.
+- EIS Calculator.
+- SST Calculator.
+
+**UAE**
+- VAT Calculator.
+- Corporate Tax Calculator.
+- Salary and Deduction Calculator.
+
+**Singapore**
+- Personal Income Tax Calculator.
+- GST Calculator.
+- CPF Calculator.
+
+**Germany**
+- Income Tax Calculator.
+- VAT Calculator.
+- Salary After Tax Calculator.
+
+### Essential Tax Calculator UX
+
+Every tax calculator should include:
+
+- Country selector.
+- Tax year selector.
+- Currency selector.
+- Annual/monthly income selection.
+- Filing status where applicable.
+- Employment type.
+- Applicable deductions.
+- Allowances.
+- Tax credits and rebates.
+- Additional income.
+- Applicable regional tax settings.
+
+Display:
+
+- Gross income.
+- Taxable income.
+- Tax deductions.
+- Applicable tax brackets.
+- Tax by bracket.
+- Total estimated tax.
+- Effective tax rate.
+- Marginal tax rate.
+- Net income.
+- Monthly take-home income.
+
+Include a detailed tax breakdown chart.
+
+Allow users to compare two tax scenarios.
+
+For example:
+
+- Annual salary: $60,000.
+- Annual salary: $75,000.
+
+Show the difference in estimated tax and take-home pay.
+
+### Tax Accuracy Requirements
+
+This is extremely important.
+
+- Use official government tax sources.
+- Identify the applicable tax year.
+- Support jurisdiction-specific rules.
+- Update rules when official rates change.
+- Maintain a versioned tax rules database.
+- Display the last verified date.
+- Provide source references.
+- Distinguish estimates from official tax advice.
+- Never invent tax rates or deductions.
+- Handle regional differences correctly.
+- Include tests for tax bracket boundaries.
+
+If the latest tax rules cannot be verified, clearly mark the calculator as using an older verified tax year instead of presenting outdated figures as current.
+
+---
+
+## E. BMI & HEALTH CALCULATORS — HIGH PRIORITY
+
+Build a dedicated Health & Fitness Calculator section.
+
+### BMI Calculator
+
+Create a premium, interactive BMI calculator.
+
+Required inputs:
+
+- Age.
+- Biological sex, only when relevant to a selected calculation.
+- Height.
+- Weight.
+- Measurement system.
+
+Support:
+
+- Metric: kg and cm.
+- Imperial: lb, ft and inches.
+
+BMI formula:
+
+BMI = Weight (kg) / Height (m)²
+
+For imperial units, convert measurements correctly before calculating.
+
+### BMI Results Interface
+
+Display:
+
+- Calculated BMI.
+- BMI category.
+- Healthy adult BMI reference range.
+- Weight range corresponding to that reference range.
+- Visual BMI indicator.
+- Clear explanation.
+- Measurement summary.
+- Relevant health disclaimer.
+
+For standard adult classification, use these categories:
+
+- Underweight: Below 18.5.
+- Healthy weight: 18.5–24.9.
+- Overweight: 25.0–29.9.
+- Obesity Class I: 30.0–34.9.
+- Obesity Class II: 35.0–39.9.
+- Obesity Class III: 40.0 or above.
+
+Use appropriate authoritative health guidance and clearly explain that adult BMI classifications are not intended for children and teenagers.
+
+For children and teenagers, use age- and sex-specific BMI percentile interpretation only when an appropriate validated reference dataset is available.
+
+### BMI UX Improvements
+
+- Instant BMI calculation.
+- Animated BMI scale.
+- Clear category indicator.
+- Metric/imperial toggle.
+- Editable inputs.
+- Copy result.
+- Download BMI report.
+- Explanation of the formula.
+- Related health calculators.
+
+Avoid body-shaming language or alarming messaging.
+
+Clearly communicate that BMI is a screening measure, not a diagnosis, and does not directly measure body fat or overall health.
+
+### Additional Health Calculators
+
+1. BMR Calculator.
+2. TDEE Calculator.
+3. Daily Calorie Calculator.
+4. Ideal Weight Calculator.
+5. Body Fat Percentage Calculator.
+6. Macronutrient Calculator.
+7. Protein Intake Calculator.
+8. Water Intake Calculator.
+9. Running Pace Calculator.
+10. Running Speed Calculator.
+11. Heart Rate Zone Calculator.
+12. Waist-to-Height Ratio Calculator.
+13. Waist-to-Hip Ratio Calculator.
+14. Pregnancy Due Date Calculator.
+15. Sleep Cycle Calculator.
+
+All health calculators must explain their assumptions and limitations.
+
+Do not provide medical diagnoses or treatment recommendations.
+
+---
+
+## F. DATE & TIME CALCULATORS
+
+1. Age Calculator.
+2. Date Difference Calculator.
+3. Days Between Dates.
+4. Time Duration Calculator.
+5. Time Zone Converter.
+6. Countdown Calculator.
+7. Working Days Calculator.
+8. Business Days Calculator.
+9. Date Add/Subtract Calculator.
+10. Weeks Between Dates.
+11. Birthday Countdown.
+12. Retirement Date Calculator.
+
+Support leap years, different month lengths and timezone considerations.
+
+## G. UNIT CONVERTERS
+
+1. Length Converter.
+2. Weight Converter.
+3. Temperature Converter.
+4. Area Converter.
+5. Volume Converter.
+6. Speed Converter.
+7. Time Converter.
+8. Data Storage Converter.
+9. Energy Converter.
+10. Pressure Converter.
+11. Power Converter.
+12. Fuel Economy Converter.
+13. Angle Converter.
+14. Frequency Converter.
+15. Cooking Measurement Converter.
+
+Build a fast two-way conversion interface.
+
+## H. BUSINESS & E-COMMERCE CALCULATORS
+
+1. Revenue Calculator.
+2. Profit Calculator.
+3. Gross Profit Calculator.
+4. Net Profit Calculator.
+5. Profit Margin Calculator.
+6. Markup Calculator.
+7. Break-Even Calculator.
+8. Business Valuation Calculator.
+9. Inventory Turnover Calculator.
+10. Product Pricing Calculator.
+11. E-commerce Profit Calculator.
+12. Shipping Cost Calculator.
+13. Commission Calculator.
+14. Sales Growth Calculator.
+15. Customer Lifetime Value Calculator.
+16. Customer Acquisition Cost Calculator.
+17. Return on Investment Calculator.
+18. Return on Ad Spend Calculator.
+
+## I. DIGITAL MARKETING CALCULATORS
+
+Create a dedicated marketing calculator section.
+
+1. CPM Calculator.
+2. CPC Calculator.
+3. CTR Calculator.
+4. CPA Calculator.
+5. CPL Calculator.
+6. CAC Calculator.
+7. ROAS Calculator.
+8. ROI Calculator.
+9. Conversion Rate Calculator.
+10. Impression Calculator.
+11. Reach and Frequency Calculator.
+12. Engagement Rate Calculator.
+13. Video View Rate Calculator.
+14. Cost Per View Calculator.
+15. Budget Allocation Calculator.
+16. Marketing Funnel Calculator.
+17. Lead-to-Sale Conversion Calculator.
+18. Revenue Forecast Calculator.
+19. Break-Even ROAS Calculator.
+20. E-commerce Advertising Profit Calculator.
+
+For every marketing calculator, provide:
+
+- Input fields.
+- Formula.
+- Instant result.
+- Example.
+- Explanation.
+- Related marketing calculators.
+
+## J. ENGINEERING & CONSTRUCTION CALCULATORS
+
+1. Concrete Calculator.
+2. Cement Calculator.
+3. Brick Calculator.
+4. Paint Calculator.
+5. Flooring Calculator.
+6. Tile Calculator.
+7. Area Calculator.
+8. Volume Calculator.
+9. Density Calculator.
+10. Force Calculator.
+11. Pressure Calculator.
+12. Electrical Power Calculator.
+13. Ohm's Law Calculator.
+14. Voltage Calculator.
+15. Current Calculator.
+16. Resistance Calculator.
+17. Energy Consumption Calculator.
+18. Electricity Bill Calculator.
+19. Fuel Cost Calculator.
+20. Pipe Volume Calculator.
+
+## K. EVERYDAY CALCULATORS
+
+1. Tip Calculator.
+2. Split Bill Calculator.
+3. Shopping Discount Calculator.
+4. Unit Price Calculator.
+5. Cooking Measurement Calculator.
+6. Fuel Cost Calculator.
+7. Travel Cost Calculator.
+8. Electricity Bill Calculator.
+9. Water Bill Calculator.
+10. Subscription Cost Calculator.
+11. Savings Goal Calculator.
+12. Gift Budget Calculator.
+
+---
+
+# 4. PREMIUM UI/UX DESIGN SYSTEM
+
+The design must feel like a premium modern SaaS product.
+
+Use design inspiration from:
+
+- Google Calculator: simplicity.
+- Omni Calculator: calculator organization.
+- Desmos: interactive mathematical experience.
+- Modern SaaS dashboards: visual hierarchy and usability.
+
+Do not copy existing websites.
+
+### Design Direction
+
+- Minimalist.
+- Premium.
+- Modern.
+- Clean.
+- Spacious.
+- Consistent.
+- Highly readable.
+- Responsive.
+- Accessible.
+
+### Color Palette
+
+Primary: #635BFF
+Background: #F8FAFC
+Surface: #FFFFFF
+Main Text: #111827
+Secondary Text: #64748B
+Borders: #E5E7EB
+Success: #16A34A
+Error: #DC2626
+
+Build a complete dark theme.
+
+Typography: Inter or a similar premium sans-serif.
+
+Use an 8px spacing system.
+
+Use consistent rounded corners, subtle shadows, elegant icons and restrained animations.
+
+Avoid unnecessary gradients, excessive decorative elements and visual clutter.
+
+---
+
+# 5. HOMEPAGE STRUCTURE
+
+Build the homepage with these sections.
+
+### SECTION 1 — NAVIGATION
+
+Left:
+- CALCORA logo.
+
+Center:
+- Calculators.
+- Math.
+- Finance.
+- Tax.
+- Health.
+- Converters.
+- Business.
+
+Right:
+- Search.
+- Favorites.
+- Theme toggle.
+
+Create a clean responsive mobile navigation.
+
+### SECTION 2 — HERO
+
+Headline:
+
+"Every Calculation. One Beautiful Experience."
+
+Description:
+
+"From everyday math to taxes, health, finance and advanced scientific calculations. Get accurate answers instantly."
+
+Include:
+
+- Large calculator search bar.
+- Universal calculator.
+- Popular calculator shortcuts.
+- Search suggestions.
+- Clear CTA.
+
+### SECTION 3 — FEATURED CALCULATOR
+
+Create a premium calculator workspace.
+
+Desktop:
+
+- Main calculator on the left.
+- Calculation history on the right.
+- Mode selector.
+- Large result display.
+- Comfortable keypad.
+
+Mobile:
+
+- Full-width calculator.
+- Large touch-friendly controls.
+- Collapsible history.
+- No horizontal overflow.
+
+### SECTION 4 — POPULAR CALCULATORS
+
+Show popular calculators as attractive cards.
+
+Prioritize:
+
+- Percentage Calculator.
+- BMI Calculator.
+- Income Tax Calculator.
+- Age Calculator.
+- Loan Calculator.
+- Scientific Calculator.
+- Discount Calculator.
+- VAT Calculator.
+- ROI Calculator.
+- Unit Converter.
+
+### SECTION 5 — CALCULATOR CATEGORIES
+
+Display category cards for:
+
+- Mathematics.
+- Finance.
+- Tax.
+- Health.
+- Business.
+- Marketing.
+- Date & Time.
+- Converters.
+- Engineering.
+- Everyday Tools.
+
+### SECTION 6 — WHY CALCORA?
+
+Highlight:
+
+- Instant calculations.
+- Accurate formulas.
+- Privacy-first.
+- No registration.
+- Free core features.
+- Mobile-friendly.
+- Offline-ready.
+
+### SECTION 7 — RECENTLY USED
+
+Display locally stored recent calculators.
+
+### SECTION 8 — FAQ
+
+Include relevant FAQs.
+
+### SECTION 9 — FOOTER
+
+Include:
+
+- Calculator categories.
+- About.
+- Contact.
+- Feedback.
+- Privacy Policy.
+- Terms of Service.
+- Disclaimer.
+
+---
+
+# 6. INDIVIDUAL CALCULATOR PAGE DESIGN
+
+Every calculator must have a consistent, high-quality page template.
+
+Example:
+
+/finance/loan-calculator/
+/tax/income-tax-calculator/us/
+/health/bmi-calculator/
+/math/percentage-calculator/
+
+Each page must include:
+
+1. Breadcrumb.
+2. Calculator title.
+3. Short description.
+4. Main calculator interface.
+5. Instant result.
+6. Formula explanation.
+7. Worked example.
+8. Calculation breakdown.
+9. Related calculators.
+10. FAQ.
+11. Relevant disclaimer.
+
+Use unique, helpful content for each page.
+
+Never create thin, duplicated pages.
+
+---
+
+# 7. ADVANCED INTERACTION FEATURES
+
+Implement:
+
+- Real-time calculation.
+- Calculation history.
+- Undo and redo.
+- Copy result.
+- Keyboard shortcuts.
+- Favorites.
+- Dark and light themes.
+- Multi-calculation workspace.
+- Input validation.
+- Smart suggestions.
+- Responsive calculator keys.
+- Tooltips.
+- Accessible focus states.
+- Interactive graphs.
+- Export functionality.
+- Shareable calculations.
+
+Every visible control must work.
+
+---
+
+# 8. TAX ENGINE ARCHITECTURE
+
+Build tax calculations as a separate, modular engine.
+
+Each country must have its own tax configuration.
+
+Tax configuration should include:
+
+- Country.
+- State/province/region.
+- Tax year.
+- Tax brackets.
+- Rates.
+- Allowances.
+- Deductions.
+- Tax credits.
+- Contribution rules.
+- Filing status.
+- Effective dates.
+- Official source.
+- Last verified date.
+
+Never hardcode one country's tax logic into a universal calculation function.
+
+Use versioned rules so historical tax years can still be calculated.
+
+Support automatic updates only after official-source verification and validation.
+
+Create automated tests for every tax bracket boundary.
+
+Display appropriate warnings when a jurisdiction's tax rules are incomplete or outdated.
+
+---
+
+# 9. BMI AND HEALTH ENGINE ARCHITECTURE
+
+Build a dedicated health calculation module.
+
+Use:
+
+- Validated formulas.
+- Explicit measurement conversions.
+- Age-aware interpretation.
+- Appropriate reference datasets.
+- Clear output explanations.
+
+BMI must support metric and imperial measurements.
+
+Do not apply adult BMI categories to children.
+
+Separate calculations from health interpretation.
+
+Provide disclaimers and links to authoritative health guidance.
+
+Never represent estimated health metrics as a medical diagnosis.
+
+---
+
+# 10. TECHNICAL STACK
+
+Preferred technology:
+
+- Next.js.
+- React.
+- TypeScript.
+- Tailwind CSS.
+- Reusable UI components.
+- Reliable math parser.
+- PWA support.
+- LocalStorage or IndexedDB.
+- Appropriate APIs for changing external data.
+
+Architecture requirements:
+
+- Component-based.
+- Modular.
+- Scalable.
+- SEO-friendly.
+- Performance-focused.
+- Secure.
+- Maintainable.
+
+Every calculator should have:
+
+- Unique ID.
+- Name.
+- Category.
+- Description.
+- Input schema.
+- Validation rules.
+- Calculation function.
+- Formula.
+- Output formatting.
+- SEO metadata.
+- Related calculator IDs.
+- Automated tests.
+
+Separate calculation logic from the UI.
+
+Do not use AI to calculate numerical answers.
+
+---
+
+# 11. SEO STRATEGY
+
+Make CALCORA an SEO-first calculator platform.
+
+Every calculator page must have:
+
+- Unique title.
+- Unique meta description.
+- Clean URL.
+- Canonical URL.
+- Unique explanatory content.
+- Internal links.
+- Breadcrumb navigation.
+- Relevant FAQ.
+- Appropriate structured data.
+- XML sitemap.
+- Robots.txt.
+
+Example URLs:
+
+/calculator/
+/calculator/scientific/
+/calculator/percentage/
+/math/quadratic-equation/
+/finance/loan-calculator/
+/finance/roi-calculator/
+/tax/income-tax-calculator/us/
+/tax/income-tax-calculator/uk/
+/tax/income-tax-calculator/bangladesh/
+/tax/income-tax-calculator/malaysia/
+/health/bmi-calculator/
+/health/bmr-calculator/
+/converter/length/
+/converter/temperature/
+/marketing/roas-calculator/
+
+Create individual pages only when they provide meaningful, jurisdiction-specific or calculator-specific value.
+
+Do not mass-produce duplicate SEO content.
+
+---
+
+# 12. PERFORMANCE REQUIREMENTS
+
+Target excellent Core Web Vitals.
+
+Implement:
+
+- Fast initial rendering.
+- Minimal JavaScript.
+- Code splitting.
+- Lazy loading.
+- Optimized fonts.
+- Lightweight icons.
+- Responsive images.
+- Minimal third-party scripts.
+- Efficient caching.
+- Server rendering where beneficial.
+
+The basic calculator should be usable immediately.
+
+---
+
+# 13. ACCESSIBILITY
+
+Follow WCAG 2.2 AA principles.
+
+Implement:
+
+- Keyboard navigation.
+- Screen reader support.
+- Accessible labels.
+- Proper contrast.
+- Visible focus indicators.
+- Accessible validation.
+- Large touch targets.
+- Reduced motion support.
+- Semantic HTML.
+
+---
+
+# 14. MONETIZATION
+
+Keep all essential calculations free.
+
+Potential revenue channels:
+
+1. Non-intrusive advertising.
+2. Premium calculation workspace.
+3. Advanced PDF reports.
+4. Saved cloud workspaces.
+5. Custom calculator templates.
+6. Team collaboration.
+7. Developer API.
+8. White-label calculators.
+9. Embeddable widgets.
+
+Never interrupt calculations with advertisements.
+
+Do not restrict basic calculator functionality behind a paywall.
+
+---
+
+# 15. FUTURE DIFFERENTIATING FEATURES
+
+Develop these after the core platform is stable.
+
+### A. Calculator Builder
+
+Allow users to create custom calculators using predefined inputs and formulas.
+
+### B. Calculation Comparison
+
+Compare multiple loans, tax scenarios, investments and business calculations.
+
+### C. Formula Library
+
+Create a searchable formula directory with explanations and examples.
+
+### D. Interactive Graphs
+
+Support financial growth, loan repayment, mathematical functions and statistical distributions.
+
+### E. Calculation Collections
+
+Organize calculations into custom collections.
+
+### F. Smart Recommendations
+
+Suggest relevant calculators based on the current calculator category.
+
+### G. Embeddable Calculators
+
+Allow other websites to embed selected calculators.
+
+### H. Developer API
+
+Offer documented endpoints for supported calculation services.
+
+### I. Multi-Language Experience
+
+Start with English, then support additional languages and regional number formats.
+
+---
+
+# 16. ANALYTICS AND TRACKING
+
+Implement privacy-conscious product analytics.
+
+Track:
+
+- Calculator page views.
+- Calculator starts.
+- Successful calculations.
+- Calculation errors.
+- Search queries.
+- Search result clicks.
+- Calculator favorites.
+- Calculation history reuse.
+- Copy interactions.
+- Return visits.
+- Premium feature engagement.
+
+Suggested events:
+
+calculator_view
+calculator_start
+calculation_complete
+calculation_error
+calculator_search
+calculator_search_result_click
+calculator_favorite
+calculation_copy
+calculation_history_reuse
+calculator_mode_change
+tax_calculation_complete
+bmi_calculation_complete
+
+Never send sensitive calculation inputs or personal health values to analytics.
+
+---
+
+# 17. QUALITY ASSURANCE
+
+Create automated tests for every calculator.
+
+Test:
+
+- Normal values.
+- Negative values.
+- Zero.
+- Decimals.
+- Very large values.
+- Very small values.
+- Invalid input.
+- Boundary conditions.
+- Rounding.
+- Precision.
+- Unit conversion.
+- Tax bracket boundaries.
+- Date and timezone edge cases.
+- BMI measurement conversions.
+
+Use independent reference values to validate calculation accuracy.
+
+Ensure all calculator outputs are deterministic.
+
+Fix all mathematical and UI errors before release.
+
+---
+
+# 18. DEVELOPMENT ROADMAP
+
+### PHASE 1 — MVP
+
+Build:
+
+- Homepage.
+- Universal Calculator.
+- Scientific Calculator.
+- Percentage Calculator.
+- Average Calculator.
+- Fraction Calculator.
+- Age Calculator.
+- BMI Calculator.
+- BMR Calculator.
+- Unit Converter.
+- Discount Calculator.
+- Loan Calculator.
+- Compound Interest Calculator.
+- ROI Calculator.
+- Profit Margin Calculator.
+- VAT Calculator.
+- Initial Income Tax Calculators.
+- Search.
+- Calculator Directory.
+- Calculation History.
+- Dark/Light Mode.
+- Responsive Design.
+
+Prioritize fully working tools over a large number of incomplete calculators.
+
+### PHASE 2 — EXPANSION
+
+Add:
+
+- Country-specific tax calculators.
+- More financial calculators.
+- Advanced mathematics.
+- Marketing calculators.
+- Business calculators.
+- Health calculators.
+- Formula explanations.
+- Interactive graphs.
+- Favorites.
+- Collections.
+- PWA and offline features.
+
+### PHASE 3 — ADVANCED PLATFORM
+
+Add:
+
+- Calculator Builder.
+- Multi-Calculation Workspace.
+- Scenario Comparison.
+- Advanced Reports.
+- Embed Widgets.
+- Developer API.
+- Cloud Workspace.
+- Premium Features.
+
+---
+
+# 19. FINAL DESIGN AND DEVELOPMENT RULES
+
+Do not build a generic template.
+
+Do not create a simple calculator with a few buttons and call it a finished platform.
+
+Do not use placeholder functionality.
+
+Do not create buttons that do nothing.
+
+Do not create fake tax rates or unsupported financial formulas.
+
+Do not show incorrect BMI interpretations.
+
+Do not overcrowd the homepage.
+
+Do not compromise calculation accuracy for design.
+
+Do not generate hundreds of repetitive SEO pages.
+
+Do not force registration.
+
+Do not make the interface complicated.
+
+Make every feature functional, accessible and responsive.
+
+The product should be understandable within five seconds of first use.
+
+---
+
+# 20. FINAL DELIVERABLES
+
+Deliver a production-ready application containing:
+
+1. Complete homepage.
+2. Universal calculator.
+3. Scientific calculator.
+4. Searchable calculator directory.
+5. Individual calculator pages.
+6. Financial calculator library.
+7. Country-specific tax calculator system.
+8. BMI calculator.
+9. Complete health calculator section.
+10. Marketing calculator section.
+11. Unit conversion engine.
+12. Calculation history.
+13. Multi-calculation workspace.
+14. Keyboard support.
+15. Dark and light themes.
+16. Responsive mobile interface.
+17. SEO-ready architecture.
+18. Privacy and terms pages.
+19. Analytics architecture.
+20. Automated mathematical tests.
+21. PWA foundation.
+22. Production deployment configuration.
+
+Before launch, test every calculator, every navigation item, every button, every form, and every interactive feature.
+
+Verify mobile, tablet and desktop layouts.
+
+Verify tax rules against official sources and BMI calculations against validated references.
+
+Fix all critical bugs before delivery.
+
+---
+
+# FINAL PRODUCT OBJECTIVE
+
+Build CALCORA into a next-generation online calculator ecosystem.
+
+The user should never need to visit five different calculator websites for five different calculations.
+
+One platform.
+
+One consistent experience.
+
+Every calculation.
+
+Instantly, accurately and beautifully.
+
+**Think like a founder building a global product, design like a world-class product team, and engineer like a company preparing to serve millions of users.**
+
+Build the actual working application, not just a landing page, wireframe or visual prototype.

@@ -1,0 +1,1401 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { Field, ResultStat, num } from "@/components/calc-page-shell";
+     5→import { Input } from "@/components/ui/input";
+     6→import { Label } from "@/components/ui/label";
+     7→import { Button } from "@/components/ui/button";
+     8→import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+     9→import {
+    10→  Select,
+    11→  SelectContent,
+    12→  SelectItem,
+    13→  SelectTrigger,
+    14→  SelectValue,
+    15→} from "@/components/ui/select";
+    16→import { parseNumber, formatNumber } from "@/lib/math-engine";
+    17→import { toast } from "sonner";
+    18→import { Copy } from "lucide-react";
+    19→
+    20→// ---------- Conversion constants ----------
+    21→const KG_PER_LB = 0.45359237;
+    22→const LB_PER_KG = 1 / KG_PER_LB;
+    23→const CM_PER_IN = 2.54;
+    24→const IN_PER_CM = 1 / CM_PER_IN;
+    25→const M_PER_IN = 0.0254;
+    26→const ML_PER_CUP = 240; // US legal cup, used for nutrition guidance
+    27→
+    28→// ---------- Shared disclaimer ----------
+    29→function HealthDisclaimer() {
+    30→  return (
+    31→    <div className="rounded-xl bg-muted/30 border border-border p-4 text-xs text-muted-foreground">
+    32→      <strong className="text-foreground">Disclaimer:</strong> This calculator provides estimates for informational purposes only and is not a medical diagnosis. Consult a qualified healthcare professional for advice.
+    33→    </div>
+    34→  );
+    35→}
+    36→
+    37→// ---------- Reusable unit toggle ----------
+    38→function UnitToggle({
+    39→  value,
+    40→  onChange,
+    41→}: {
+    42→  value: "metric" | "imperial";
+    43→  onChange: (v: "metric" | "imperial") => void;
+    44→}) {
+    45→  return (
+    46→    <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
+    47→      {(["metric", "imperial"] as const).map((opt) => (
+    48→        <button
+    49→          key={opt}
+    50→          type="button"
+    51→          onClick={() => onChange(opt)}
+    52→          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
+    53→            value === opt
+    54→              ? "bg-primary text-primary-foreground"
+    55→              : "text-muted-foreground hover:text-foreground"
+    56→          }`}
+    57→        >
+    58→          {opt}
+    59→        </button>
+    60→      ))}
+    61→    </div>
+    62→  );
+    63→}
+    64→
+    65→// ---------- Reusable copy-to-clipboard button ----------
+    66→function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+    67→  return (
+    68→    <Button
+    69→      variant="ghost"
+    70→      size="sm"
+    71→      className="h-7"
+    72→      onClick={() => {
+    73→        if (typeof navigator !== "undefined" && navigator.clipboard) {
+    74→          navigator.clipboard.writeText(value).then(
+    75→            () => toast.success("Copied to clipboard"),
+    76→            () => toast.error("Could not copy"),
+    77→          );
+    78→        }
+    79→      }}
+    80→    >
+    81→      <Copy className="size-3.5" /> {label}
+    82→    </Button>
+    83→  );
+    84→}
+    85→
+    86→// ---------- Reusable sex toggle ----------
+    87→function SexToggle({
+    88→  value,
+    89→  onChange,
+    90→}: {
+    91→  value: "male" | "female";
+    92→  onChange: (v: "male" | "female") => void;
+    93→}) {
+    94→  return (
+    95→    <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
+    96→      {(["male", "female"] as const).map((s) => (
+    97→        <button
+    98→          key={s}
+    99→          type="button"
+   100→          onClick={() => onChange(s)}
+   101→          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
+   102→            value === s
+   103→              ? "bg-primary text-primary-foreground"
+   104→              : "text-muted-foreground hover:text-foreground"
+   105→          }`}
+   106→        >
+   107→          {s}
+   108→        </button>
+   109→      ))}
+   110→    </div>
+   111→  );
+   112→}
+   113→
+   114→// ---------- Activity levels ----------
+   115→const ACTIVITY_LEVELS = [
+   116→  { id: "sedentary", name: "Sedentary — little or no exercise", factor: 1.2 },
+   117→  { id: "light", name: "Light — 1-3 days/week", factor: 1.375 },
+   118→  { id: "moderate", name: "Moderate — 3-5 days/week", factor: 1.55 },
+   119→  { id: "active", name: "Active — 6-7 days/week", factor: 1.725 },
+   120→  { id: "very-active", name: "Very Active — physical job or daily training", factor: 1.9 },
+   121→] as const;
+   122→
+   123→// ---------- Mifflin-St Jeor BMR ----------
+   124→function computeBMR(
+   125→  sex: "male" | "female",
+   126→  age: number,
+   127→  heightCm: number,
+   128→  weightKg: number,
+   129→): number {
+   130→  if (heightCm <= 0 || weightKg <= 0 || age <= 0) return NaN;
+   131→  const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
+   132→  return sex === "male" ? base + 5 : base - 161;
+   133→}
+   134→
+   135→// ---------- Time helpers ----------
+   136→function parseDuration(s: string): number {
+   137→  if (!s) return 0;
+   138→  const parts = s.split(":").map((p) => parseNumber(p));
+   139→  if (parts.length === 1) return parts[0];
+   140→  if (parts.length === 2) return parts[0] * 60 + parts[1];
+   141→  if (parts.length >= 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+   142→  return 0;
+   143→}
+   144→
+   145→function formatDuration(sec: number): string {
+   146→  if (!Number.isFinite(sec) || sec < 0) return "—";
+   147→  const h = Math.floor(sec / 3600);
+   148→  const m = Math.floor((sec % 3600) / 60);
+   149→  const s = Math.round(sec % 60);
+   150→  const mm = String(m).padStart(2, "0");
+   151→  const ss = String(s).padStart(2, "0");
+   152→  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+   153→}
+   154→
+   155→function formatPace(secPerUnit: number): string {
+   156→  if (!Number.isFinite(secPerUnit) || secPerUnit <= 0) return "—";
+   157→  const m = Math.floor(secPerUnit / 60);
+   158→  const s = Math.round(secPerUnit % 60);
+   159→  return `${m}:${String(s).padStart(2, "0")}`;
+   160→}
+   161→
+   162→// ============================================================
+   163→// 1. BMI Calculator
+   164→// ============================================================
+   165→function BMICalc() {
+   166→  const [system, setSystem] = React.useState<"metric" | "imperial">("metric");
+   167→  const [cm, setCm] = React.useState("175");
+   168→  const [kg, setKg] = React.useState("70");
+   169→  const [ft, setFt] = React.useState("5");
+   170→  const [inch, setInch] = React.useState("9");
+   171→  const [lb, setLb] = React.useState("154");
+   172→
+   173→  const r = React.useMemo(() => {
+   174→    let bmi = NaN;
+   175→    let heightM = 0;
+   176→    let heightIn = 0;
+   177→    let weightKg = 0;
+   178→    if (system === "metric") {
+   179→      const h = parseNumber(cm);
+   180→      const w = parseNumber(kg);
+   181→      heightM = h / 100;
+   182→      heightIn = h * IN_PER_CM;
+   183→      weightKg = w;
+   184→      if (h > 0 && w > 0) bmi = w / (heightM * heightM);
+   185→    } else {
+   186→      const f = parseNumber(ft);
+   187→      const i = parseNumber(inch);
+   188→      const w = parseNumber(lb);
+   189→      const totalIn = f * 12 + i;
+   190→      heightIn = totalIn;
+   191→      heightM = totalIn * M_PER_IN;
+   192→      weightKg = w * KG_PER_LB;
+   193→      if (totalIn > 0 && w > 0) bmi = (703 * w) / (totalIn * totalIn);
+   194→    }
+   195→    const healthyMinKg = 18.5 * heightM * heightM;
+   196→    const healthyMaxKg = 24.9 * heightM * heightM;
+   197→    return {
+   198→      bmi,
+   199→      heightM,
+   200→      heightIn,
+   201→      weightKg,
+   202→      healthyMinKg,
+   203→      healthyMaxKg,
+   204→      healthyMinLb: healthyMinKg * LB_PER_KG,
+   205→      healthyMaxLb: healthyMaxKg * LB_PER_KG,
+   206→    };
+   207→  }, [system, cm, kg, ft, inch, lb]);
+   208→
+   209→  const category = React.useMemo(() => {
+   210→    if (!Number.isFinite(r.bmi)) return { name: "—", accent: "default" as const };
+   211→    if (r.bmi < 18.5) return { name: "Underweight", accent: "primary" as const };
+   212→    if (r.bmi < 25) return { name: "Healthy weight", accent: "success" as const };
+   213→    if (r.bmi < 30) return { name: "Overweight", accent: "warning" as const };
+   214→    if (r.bmi < 35) return { name: "Obesity (Class I)", accent: "warning" as const };
+   215→    if (r.bmi < 40) return { name: "Obesity (Class II)", accent: "warning" as const };
+   216→    return { name: "Obesity (Class III)", accent: "warning" as const };
+   217→  }, [r.bmi]);
+   218→
+   219→  // Marker position: BMI 15..40 mapped to 0..100%
+   220→  const markerPos = React.useMemo(() => {
+   221→    if (!Number.isFinite(r.bmi)) return 0;
+   222→    const pct = ((r.bmi - 15) / (40 - 15)) * 100;
+   223→    return Math.max(0, Math.min(100, pct));
+   224→  }, [r.bmi]);
+   225→
+   226→  const heightLabel =
+   227→    system === "metric"
+   228→      ? `${formatNumber(r.heightM * 100, 0)} cm`
+   229→      : `${Math.floor(r.heightIn / 12)} ft ${Math.round(r.heightIn % 12)} in`;
+   230→
+   231→  return (
+   232→    <Tabs defaultValue="adults">
+   233→      <TabsList>
+   234→        <TabsTrigger value="adults">Adults</TabsTrigger>
+   235→      </TabsList>
+   236→      <TabsContent value="adults" className="space-y-5 mt-4">
+   237→        <div className="rounded-lg bg-muted/30 border border-border px-3 py-2 text-xs text-muted-foreground">
+   238→          Adult BMI classification applies to ages 20+. For children and teens, consult a pediatrician.
+   239→        </div>
+   240→
+   241→        <div className="flex items-center justify-between gap-3 flex-wrap">
+   242→          <Label className="text-sm font-medium">Measurement system</Label>
+   243→          <UnitToggle value={system} onChange={setSystem} />
+   244→        </div>
+   245→
+   246→        {system === "metric" ? (
+   247→          <div className="grid sm:grid-cols-2 gap-4">
+   248→            <Field label="Height (cm)">
+   249→              <Input type="number" value={cm} onChange={(e) => setCm(e.target.value)} className="font-mono" />
+   250→            </Field>
+   251→            <Field label="Weight (kg)">
+   252→              <Input type="number" value={kg} onChange={(e) => setKg(e.target.value)} className="font-mono" />
+   253→            </Field>
+   254→          </div>
+   255→        ) : (
+   256→          <div className="grid sm:grid-cols-3 gap-4">
+   257→            <Field label="Height (ft)">
+   258→              <Input type="number" value={ft} onChange={(e) => setFt(e.target.value)} className="font-mono" />
+   259→            </Field>
+   260→            <Field label="Height (in)">
+   261→              <Input type="number" value={inch} onChange={(e) => setInch(e.target.value)} className="font-mono" />
+   262→            </Field>
+   263→            <Field label="Weight (lb)">
+   264→              <Input type="number" value={lb} onChange={(e) => setLb(e.target.value)} className="font-mono" />
+   265→            </Field>
+   266→          </div>
+   267→        )}
+   268→
+   269→        {Number.isFinite(r.bmi) ? (
+   270→          <>
+   271→            <div className="flex items-start justify-between gap-3">
+   272→              <div className="flex-1">
+   273→                <ResultStat
+   274→                  label="Your BMI"
+   275→                  value={r.bmi.toFixed(1)}
+   276→                  sublabel={category.name}
+   277→                  accent={category.accent}
+   278→                />
+   279→              </div>
+   280→              <CopyButton value={`BMI ${r.bmi.toFixed(1)} - ${category.name}`} />
+   281→            </div>
+   282→
+   283→            {/* Animated BMI scale */}
+   284→            <div className="space-y-2">
+   285→              <div
+   286→                className="relative h-3 rounded-full overflow-hidden"
+   287→                style={{
+   288→                  background:
+   289→                    "linear-gradient(to right, #3b82f6 0% 16%, #22c55e 16% 38%, #eab308 38% 56%, #f97316 56% 70%, #ef4444 70% 100%)",
+   290→                }}
+   291→              >
+   292→                <div
+   293→                  className="absolute top-[-4px] w-1 h-5 bg-foreground rounded-full transition-all duration-300"
+   294→                  style={{ left: `calc(${markerPos}% - 2px)` }}
+   295→                  aria-label={`BMI marker at ${r.bmi.toFixed(1)}`}
+   296→                />
+   297→              </div>
+   298→              <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+   299→                <span>15</span>
+   300→                <span>18.5</span>
+   301→                <span>25</span>
+   302→                <span>30</span>
+   303→                <span>35</span>
+   304→                <span>40</span>
+   305→              </div>
+   306→              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[10px] text-muted-foreground pt-1">
+   307→                <Legend color="#3b82f6" label="Underweight" range="<18.5" />
+   308→                <Legend color="#22c55e" label="Healthy" range="18.5-24.9" />
+   309→                <Legend color="#eab308" label="Overweight" range="25-29.9" />
+   310→                <Legend color="#f97316" label="Obesity I" range="30-34.9" />
+   311→                <Legend color="#ef4444" label="Obesity II" range="35-39.9" />
+   312→                <Legend color="#b91c1c" label="Obesity III" range=">=40" />
+   313→              </div>
+   314→            </div>
+   315→
+   316→            {/* Healthy weight range */}
+   317→            <div className="rounded-2xl border border-border bg-card p-4">
+   318→              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+   319→                Healthy weight range for your height
+   320→              </div>
+   321→              <div className="text-lg font-bold font-mono">
+   322→                {system === "metric"
+   323→                  ? `${formatNumber(r.healthyMinKg, 1)} - ${formatNumber(r.healthyMaxKg, 1)} kg`
+   324→                  : `${formatNumber(r.healthyMinLb, 1)} - ${formatNumber(r.healthyMaxLb, 1)} lb`}
+   325→              </div>
+   326→              <div className="text-xs text-muted-foreground mt-1">
+   327→                BMI 18.5-24.9 at height {heightLabel}
+   328→              </div>
+   329→            </div>
+   330→
+   331→            <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+   332→              <strong className="text-foreground">Formula:</strong>{" "}
+   333→              {system === "metric"
+   334→                ? "BMI = weight(kg) / (height(m))^2"
+   335→                : "BMI = 703 x weight(lb) / (height(in))^2"}
+   336→            </div>
+   337→
+   338→            <div className="rounded-xl bg-muted/30 border border-border p-4 text-xs text-muted-foreground">
+   339→              <strong className="text-foreground">Disclaimer:</strong> BMI is a screening measure, not a diagnosis. It does not directly measure body fat or health. Consult a healthcare professional for advice.
+   340→            </div>
+   341→          </>
+   342→        ) : (
+   343→          <div className="text-center py-10 text-muted-foreground text-sm">
+   344→            Enter your height and weight to see your BMI.
+   345→          </div>
+   346→        )}
+   347→
+   348→        <HealthDisclaimer />
+   349→      </TabsContent>
+   350→    </Tabs>
+   351→  );
+   352→}
+   353→
+   354→function Legend({ color, label, range }: { color: string; label: string; range: string }) {
+   355→  return (
+   356→    <div className="flex items-center gap-1.5">
+   357→      <span className="inline-block size-2.5 rounded-sm shrink-0" style={{ background: color }} />
+   358→      <span className="text-foreground font-medium">{label}</span>
+   359→      <span className="ml-auto font-mono">{range}</span>
+   360→    </div>
+   361→  );
+   362→}
+   363→
+   364→// ============================================================
+   365→// 2. BMR Calculator
+   366→// ============================================================
+   367→function BMRCalc() {
+   368→  const [system, setSystem] = React.useState<"metric" | "imperial">("metric");
+   369→  const [sex, setSex] = React.useState<"male" | "female">("male");
+   370→  const [age, setAge] = React.useState("30");
+   371→  const [cm, setCm] = React.useState("175");
+   372→  const [kg, setKg] = React.useState("70");
+   373→  const [ft, setFt] = React.useState("5");
+   374→  const [inch, setInch] = React.useState("9");
+   375→  const [lb, setLb] = React.useState("154");
+   376→
+   377→  const bmr = React.useMemo(() => {
+   378→    let heightCm = 0;
+   379→    let weightKg = 0;
+   380→    if (system === "metric") {
+   381→      heightCm = parseNumber(cm);
+   382→      weightKg = parseNumber(kg);
+   383→    } else {
+   384→      const totalIn = parseNumber(ft) * 12 + parseNumber(inch);
+   385→      heightCm = totalIn * CM_PER_IN;
+   386→      weightKg = parseNumber(lb) * KG_PER_LB;
+   387→    }
+   388→    return computeBMR(sex, parseNumber(age), heightCm, weightKg);
+   389→  }, [system, sex, age, cm, kg, ft, inch, lb]);
+   390→
+   391→  return (
+   392→    <div className="space-y-5">
+   393→      <div className="flex items-center justify-between gap-3 flex-wrap">
+   394→        <Label className="text-sm font-medium">Measurement system</Label>
+   395→        <UnitToggle value={system} onChange={setSystem} />
+   396→      </div>
+   397→
+   398→      <Field label="Sex">
+   399→        <SexToggle value={sex} onChange={setSex} />
+   400→      </Field>
+   401→
+   402→      <div className="grid sm:grid-cols-2 gap-4">
+   403→        <Field label="Age (years)">
+   404→          <Input type="number" value={age} onChange={(e) => setAge(e.target.value)} className="font-mono" />
+   405→        </Field>
+   406→        {system === "metric" ? (
+   407→          <>
+   408→            <Field label="Height (cm)">
+   409→              <Input type="number" value={cm} onChange={(e) => setCm(e.target.value)} className="font-mono" />
+   410→            </Field>
+   411→            <Field label="Weight (kg)">
+   412→              <Input type="number" value={kg} onChange={(e) => setKg(e.target.value)} className="font-mono" />
+   413→            </Field>
+   414→          </>
+   415→        ) : (
+   416→          <>
+   417→            <Field label="Height (ft)">
+   418→              <Input type="number" value={ft} onChange={(e) => setFt(e.target.value)} className="font-mono" />
+   419→            </Field>
+   420→            <Field label="Height (in)">
+   421→              <Input type="number" value={inch} onChange={(e) => setInch(e.target.value)} className="font-mono" />
+   422→            </Field>
+   423→            <Field label="Weight (lb)">
+   424→              <Input type="number" value={lb} onChange={(e) => setLb(e.target.value)} className="font-mono" />
+   425→            </Field>
+   426→          </>
+   427→        )}
+   428→      </div>
+   429→
+   430→      {Number.isFinite(bmr) ? (
+   431→        <ResultStat
+   432→          label="Basal Metabolic Rate"
+   433→          value={`${num(bmr, 0)} kcal/day`}
+   434→          sublabel="Mifflin-St Jeor equation"
+   435→          accent="primary"
+   436→        />
+   437→      ) : (
+   438→        <div className="text-center py-10 text-muted-foreground text-sm">
+   439→          Enter valid values to compute your BMR.
+   440→        </div>
+   441→      )}
+   442→
+   443→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+   444→        <strong className="text-foreground">Formula (Mifflin-St Jeor):</strong>
+   445→        <div className="mt-1 font-mono text-xs">
+   446→          Men: BMR = 10 x kg + 6.25 x cm - 5 x age + 5
+   447→          <br />
+   448→          Women: BMR = 10 x kg + 6.25 x cm - 5 x age - 161
+   449→        </div>
+   450→      </div>
+   451→
+   452→      <HealthDisclaimer />
+   453→    </div>
+   454→  );
+   455→}
+   456→
+   457→// ============================================================
+   458→// 3. TDEE Calculator
+   459→// ============================================================
+   460→function TDEECalc() {
+   461→  const [system, setSystem] = React.useState<"metric" | "imperial">("metric");
+   462→  const [sex, setSex] = React.useState<"male" | "female">("male");
+   463→  const [age, setAge] = React.useState("30");
+   464→  const [cm, setCm] = React.useState("175");
+   465→  const [kg, setKg] = React.useState("70");
+   466→  const [ft, setFt] = React.useState("5");
+   467→  const [inch, setInch] = React.useState("9");
+   468→  const [lb, setLb] = React.useState("154");
+   469→  const [activityId, setActivityId] = React.useState<string>("moderate");
+   470→
+   471→  const activity = ACTIVITY_LEVELS.find((a) => a.id === activityId) ?? ACTIVITY_LEVELS[2];
+   472→
+   473→  const { bmr, tdee } = React.useMemo(() => {
+   474→    let heightCm = 0;
+   475→    let weightKg = 0;
+   476→    if (system === "metric") {
+   477→      heightCm = parseNumber(cm);
+   478→      weightKg = parseNumber(kg);
+   479→    } else {
+   480→      const totalIn = parseNumber(ft) * 12 + parseNumber(inch);
+   481→      heightCm = totalIn * CM_PER_IN;
+   482→      weightKg = parseNumber(lb) * KG_PER_LB;
+   483→    }
+   484→    const b = computeBMR(sex, parseNumber(age), heightCm, weightKg);
+   485→    return { bmr: b, tdee: Number.isFinite(b) ? b * activity.factor : NaN };
+   486→  }, [system, sex, age, cm, kg, ft, inch, lb, activity]);
+   487→
+   488→  return (
+   489→    <div className="space-y-5">
+   490→      <div className="flex items-center justify-between gap-3 flex-wrap">
+   491→        <Label className="text-sm font-medium">Measurement system</Label>
+   492→        <UnitToggle value={system} onChange={setSystem} />
+   493→      </div>
+   494→
+   495→      <Field label="Sex">
+   496→        <SexToggle value={sex} onChange={setSex} />
+   497→      </Field>
+   498→
+   499→      <div className="grid sm:grid-cols-2 gap-4">
+   500→        <Field label="Age (years)">
+   501→          <Input type="number" value={age} onChange={(e) => setAge(e.target.value)} className="font-mono" />
+   502→        </Field>
+   503→        {system === "metric" ? (
+   504→          <>
+   505→            <Field label="Height (cm)">
+   506→              <Input type="number" value={cm} onChange={(e) => setCm(e.target.value)} className="font-mono" />
+   507→            </Field>
+   508→            <Field label="Weight (kg)">
+   509→              <Input type="number" value={kg} onChange={(e) => setKg(e.target.value)} className="font-mono" />
+   510→            </Field>
+   511→          </>
+   512→        ) : (
+   513→          <>
+   514→            <Field label="Height (ft)">
+   515→              <Input type="number" value={ft} onChange={(e) => setFt(e.target.value)} className="font-mono" />
+   516→            </Field>
+   517→            <Field label="Height (in)">
+   518→              <Input type="number" value={inch} onChange={(e) => setInch(e.target.value)} className="font-mono" />
+   519→            </Field>
+   520→            <Field label="Weight (lb)">
+   521→              <Input type="number" value={lb} onChange={(e) => setLb(e.target.value)} className="font-mono" />
+   522→            </Field>
+   523→          </>
+   524→        )}
+   525→      </div>
+   526→
+   527→      <Field label="Activity level" hint={`Multiplier: ${activity.factor}`}>
+   528→        <Select value={activityId} onValueChange={setActivityId}>
+   529→          <SelectTrigger className="w-full">
+   530→            <SelectValue />
+   531→          </SelectTrigger>
+   532→          <SelectContent>
+   533→            {ACTIVITY_LEVELS.map((a) => (
+   534→              <SelectItem key={a.id} value={a.id}>
+   535→                {a.name}
+   536→              </SelectItem>
+   537→            ))}
+   538→          </SelectContent>
+   539→        </Select>
+   540→      </Field>
+   541→
+   542→      {Number.isFinite(tdee) ? (
+   543→        <div className="grid sm:grid-cols-2 gap-4">
+   544→          <ResultStat label="BMR" value={`${num(bmr, 0)} kcal/day`} sublabel="At complete rest" />
+   545→          <ResultStat
+   546→            label="TDEE"
+   547→            value={`${num(tdee, 0)} kcal/day`}
+   548→            sublabel={`BMR x ${activity.factor}`}
+   549→            accent="primary"
+   550→          />
+   551→        </div>
+   552→      ) : (
+   553→        <div className="text-center py-10 text-muted-foreground text-sm">
+   554→          Enter valid values to compute your TDEE.
+   555→        </div>
+   556→      )}
+   557→
+   558→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+   559→        <strong className="text-foreground">Formula:</strong> TDEE = BMR (Mifflin-St Jeor) x activity factor.
+   560→        Activity factors: Sedentary 1.2, Light 1.375, Moderate 1.55, Active 1.725, Very Active 1.9.
+   561→      </div>
+   562→
+   563→      <HealthDisclaimer />
+   564→    </div>
+   565→  );
+   566→}
+   567→
+   568→// ============================================================
+   569→// 4. Daily Calorie Calculator
+   570→// ============================================================
+   571→function CalorieCalc() {
+   572→  const [system, setSystem] = React.useState<"metric" | "imperial">("metric");
+   573→  const [sex, setSex] = React.useState<"male" | "female">("male");
+   574→  const [age, setAge] = React.useState("30");
+   575→  const [cm, setCm] = React.useState("175");
+   576→  const [kg, setKg] = React.useState("70");
+   577→  const [ft, setFt] = React.useState("5");
+   578→  const [inch, setInch] = React.useState("9");
+   579→  const [lb, setLb] = React.useState("154");
+   580→  const [activityId, setActivityId] = React.useState<string>("moderate");
+   581→  const [goal, setGoal] = React.useState<"lose" | "maintain" | "gain">("maintain");
+   582→
+   583→  const activity = ACTIVITY_LEVELS.find((a) => a.id === activityId) ?? ACTIVITY_LEVELS[2];
+   584→
+   585→  const targets = React.useMemo(() => {
+   586→    let heightCm = 0;
+   587→    let weightKg = 0;
+   588→    if (system === "metric") {
+   589→      heightCm = parseNumber(cm);
+   590→      weightKg = parseNumber(kg);
+   591→    } else {
+   592→      const totalIn = parseNumber(ft) * 12 + parseNumber(inch);
+   593→      heightCm = totalIn * CM_PER_IN;
+   594→      weightKg = parseNumber(lb) * KG_PER_LB;
+   595→    }
+   596→    const b = computeBMR(sex, parseNumber(age), heightCm, weightKg);
+   597→    const tdee = Number.isFinite(b) ? b * activity.factor : NaN;
+   598→    return {
+   599→      bmr: b,
+   600→      tdee,
+   601→      lose: Number.isFinite(tdee) ? tdee - 500 : NaN,
+   602→      maintain: tdee,
+   603→      gain: Number.isFinite(tdee) ? tdee + 500 : NaN,
+   604→    };
+   605→  }, [system, sex, age, cm, kg, ft, inch, lb, activity]);
+   606→
+   607→  const accent = (g: "lose" | "maintain" | "gain"): "primary" | "success" | "warning" | "default" =>
+   608→    goal === g ? "primary" : "default";
+   609→
+   610→  return (
+   611→    <div className="space-y-5">
+   612→      <div className="flex items-center justify-between gap-3 flex-wrap">
+   613→        <Label className="text-sm font-medium">Measurement system</Label>
+   614→        <UnitToggle value={system} onChange={setSystem} />
+   615→      </div>
+   616→
+   617→      <Field label="Sex">
+   618→        <SexToggle value={sex} onChange={setSex} />
+   619→      </Field>
+   620→
+   621→      <div className="grid sm:grid-cols-2 gap-4">
+   622→        <Field label="Age (years)">
+   623→          <Input type="number" value={age} onChange={(e) => setAge(e.target.value)} className="font-mono" />
+   624→        </Field>
+   625→        {system === "metric" ? (
+   626→          <>
+   627→            <Field label="Height (cm)">
+   628→              <Input type="number" value={cm} onChange={(e) => setCm(e.target.value)} className="font-mono" />
+   629→            </Field>
+   630→            <Field label="Weight (kg)">
+   631→              <Input type="number" value={kg} onChange={(e) => setKg(e.target.value)} className="font-mono" />
+   632→            </Field>
+   633→          </>
+   634→        ) : (
+   635→          <>
+   636→            <Field label="Height (ft)">
+   637→              <Input type="number" value={ft} onChange={(e) => setFt(e.target.value)} className="font-mono" />
+   638→            </Field>
+   639→            <Field label="Height (in)">
+   640→              <Input type="number" value={inch} onChange={(e) => setInch(e.target.value)} className="font-mono" />
+   641→            </Field>
+   642→            <Field label="Weight (lb)">
+   643→              <Input type="number" value={lb} onChange={(e) => setLb(e.target.value)} className="font-mono" />
+   644→            </Field>
+   645→          </>
+   646→        )}
+   647→      </div>
+   648→
+   649→      <div className="grid sm:grid-cols-2 gap-4">
+   650→        <Field label="Activity level" hint={`Multiplier: ${activity.factor}`}>
+   651→          <Select value={activityId} onValueChange={setActivityId}>
+   652→            <SelectTrigger className="w-full">
+   653→              <SelectValue />
+   654→            </SelectTrigger>
+   655→            <SelectContent>
+   656→              {ACTIVITY_LEVELS.map((a) => (
+   657→                <SelectItem key={a.id} value={a.id}>
+   658→                  {a.name}
+   659→                </SelectItem>
+   660→              ))}
+   661→            </SelectContent>
+   662→          </Select>
+   663→        </Field>
+   664→        <Field label="Your goal">
+   665→          <Select value={goal} onValueChange={(v) => setGoal(v as typeof goal)}>
+   666→            <SelectTrigger className="w-full">
+   667→              <SelectValue />
+   668→            </SelectTrigger>
+   669→            <SelectContent>
+   670→              <SelectItem value="lose">Lose weight (~0.5 kg/week)</SelectItem>
+   671→              <SelectItem value="maintain">Maintain weight</SelectItem>
+   672→              <SelectItem value="gain">Gain weight (~0.5 kg/week)</SelectItem>
+   673→            </SelectContent>
+   674→          </Select>
+   675→        </Field>
+   676→      </div>
+   677→
+   678→      {Number.isFinite(targets.tdee) ? (
+   679→        <div className="grid sm:grid-cols-3 gap-4">
+   680→          <ResultStat
+   681→            label="Lose weight"
+   682→            value={`${num(targets.lose, 0)} kcal`}
+   683→            sublabel="TDEE - 500"
+   684→            accent={accent("lose")}
+   685→          />
+   686→          <ResultStat
+   687→            label="Maintain"
+   688→            value={`${num(targets.maintain, 0)} kcal`}
+   689→            sublabel="= TDEE"
+   690→            accent={accent("maintain")}
+   691→          />
+   692→          <ResultStat
+   693→            label="Gain weight"
+   694→            value={`${num(targets.gain, 0)} kcal`}
+   695→            sublabel="TDEE + 500"
+   696→            accent={accent("gain")}
+   697→          />
+   698→        </div>
+   699→      ) : (
+   700→        <div className="text-center py-10 text-muted-foreground text-sm">
+   701→          Enter valid values to compute your calorie targets.
+   702→        </div>
+   703→      )}
+   704→
+   705→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+   706→        <strong className="text-foreground">Method:</strong> Daily calories are based on TDEE (Mifflin-St Jeor BMR x activity factor).
+   707→        A deficit of 500 kcal/day produces roughly 0.5 kg of weight loss per week; a surplus of 500 kcal/day produces similar gain.
+   708→      </div>
+   709→
+   710→      <HealthDisclaimer />
+   711→    </div>
+   712→  );
+   713→}
+   714→
+   715→// ============================================================
+   716→// 5. Ideal Weight (Devine, Hamwi, Robinson)
+   717→// ============================================================
+   718→function IdealWeightCalc() {
+   719→  const [system, setSystem] = React.useState<"metric" | "imperial">("metric");
+   720→  const [sex, setSex] = React.useState<"male" | "female">("male");
+   721→  const [cm, setCm] = React.useState("175");
+   722→  const [ft, setFt] = React.useState("5");
+   723→  const [inch, setInch] = React.useState("9");
+   724→
+   725→  const results = React.useMemo(() => {
+   726→    let heightIn = 0;
+   727→    if (system === "metric") {
+   728→      heightIn = parseNumber(cm) * IN_PER_CM;
+   729→    } else {
+   730→      heightIn = parseNumber(ft) * 12 + parseNumber(inch);
+   731→    }
+   732→    if (heightIn <= 0) return null;
+   733→    const delta = heightIn - 60;
+   734→    const devineKg = sex === "male" ? 50 + 2.3 * delta : 45.5 + 2.3 * delta;
+   735→    const hamwiKg = sex === "male" ? 48.0 + 2.7 * delta : 45.5 + 2.2 * delta;
+   736→    const robinsonKg = sex === "male" ? 52 + 1.9 * delta : 49 + 1.7 * delta;
+   737→    return {
+   738→      heightIn,
+   739→      devineKg,
+   740→      hamwiKg,
+   741→      robinsonKg,
+   742→      devineLb: devineKg * LB_PER_KG,
+   743→      hamwiLb: hamwiKg * LB_PER_KG,
+   744→      robinsonLb: robinsonKg * LB_PER_KG,
+   745→    };
+   746→  }, [system, sex, cm, ft, inch]);
+   747→
+   748→  return (
+   749→    <div className="space-y-5">
+   750→      <div className="flex items-center justify-between gap-3 flex-wrap">
+   751→        <Label className="text-sm font-medium">Measurement system</Label>
+   752→        <UnitToggle value={system} onChange={setSystem} />
+   753→      </div>
+   754→
+   755→      <Field label="Sex">
+   756→        <SexToggle value={sex} onChange={setSex} />
+   757→      </Field>
+   758→
+   759→      {system === "metric" ? (
+   760→        <Field label="Height (cm)">
+   761→          <Input type="number" value={cm} onChange={(e) => setCm(e.target.value)} className="font-mono" />
+   762→        </Field>
+   763→      ) : (
+   764→        <div className="grid sm:grid-cols-2 gap-4">
+   765→          <Field label="Height (ft)">
+   766→            <Input type="number" value={ft} onChange={(e) => setFt(e.target.value)} className="font-mono" />
+   767→          </Field>
+   768→          <Field label="Height (in)">
+   769→            <Input type="number" value={inch} onChange={(e) => setInch(e.target.value)} className="font-mono" />
+   770→          </Field>
+   771→        </div>
+   772→      )}
+   773→
+   774→      {results ? (
+   775→        <div className="space-y-3">
+   776→          <ResultStat
+   777→            label="Ideal weight (Devine)"
+   778→            value={
+   779→              system === "metric"
+   780→                ? `${formatNumber(results.devineKg, 1)} kg`
+   781→                : `${formatNumber(results.devineLb, 1)} lb`
+   782→            }
+   783→            sublabel="Primary formula"
+   784→            accent="primary"
+   785→          />
+   786→          <div className="grid sm:grid-cols-2 gap-4">
+   787→            <ResultStat
+   788→              label="Hamwi"
+   789→              value={
+   790→                system === "metric"
+   791→                  ? `${formatNumber(results.hamwiKg, 1)} kg`
+   792→                  : `${formatNumber(results.hamwiLb, 1)} lb`
+   793→              }
+   794→            />
+   795→            <ResultStat
+   796→              label="Robinson"
+   797→              value={
+   798→                system === "metric"
+   799→                  ? `${formatNumber(results.robinsonKg, 1)} kg`
+   800→                  : `${formatNumber(results.robinsonLb, 1)} lb`
+   801→              }
+   802→            />
+   803→          </div>
+   804→        </div>
+   805→      ) : (
+   806→        <div className="text-center py-10 text-muted-foreground text-sm">
+   807→          Enter a valid height to compute your ideal weight.
+   808→        </div>
+   809→      )}
+   810→
+   811→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-xs text-muted-foreground font-mono">
+   812→        <strong className="text-foreground font-sans">Formulas</strong> (height in inches, computed for heights over 5 ft / 60 in):
+   813→        <div className="mt-1">
+   814→          Devine (men): 50 + 2.3 x (height_in - 60)
+   815→          <br />
+   816→          Devine (women): 45.5 + 2.3 x (height_in - 60)
+   817→          <br />
+   818→          Hamwi (men): 48.0 + 2.7 x (height_in - 60)
+   819→          <br />
+   820→          Hamwi (women): 45.5 + 2.2 x (height_in - 60)
+   821→          <br />
+   822→          Robinson (men): 52 + 1.9 x (height_in - 60)
+   823→          <br />
+   824→          Robinson (women): 49 + 1.7 x (height_in - 60)
+   825→        </div>
+   826→      </div>
+   827→
+   828→      <HealthDisclaimer />
+   829→    </div>
+   830→  );
+   831→}
+   832→
+   833→// ============================================================
+   834→// 6. Body Fat (US Navy method)
+   835→// ============================================================
+   836→function BodyFatCalc() {
+   837→  const [system, setSystem] = React.useState<"metric" | "imperial">("metric");
+   838→  const [sex, setSex] = React.useState<"male" | "female">("male");
+   839→  const [height, setHeight] = React.useState("175");
+   840→  const [neck, setNeck] = React.useState("38");
+   841→  const [waist, setWaist] = React.useState("85");
+   842→  const [hip, setHip] = React.useState("95");
+   843→
+   844→  const result = React.useMemo(() => {
+   845→    // Convert all measurements to cm
+   846→    const toCm = (v: string) =>
+   847→      system === "metric" ? parseNumber(v) : parseNumber(v) * CM_PER_IN;
+   848→    const h = toCm(height);
+   849→    const n = toCm(neck);
+   850→    const w = toCm(waist);
+   851→    const hp = toCm(hip);
+   852→    if (h <= 0 || n <= 0 || w <= 0) return { bf: NaN, category: "—" };
+   853→    let bf = NaN;
+   854→    if (sex === "male") {
+   855→      if (w - n <= 0) return { bf: NaN, category: "—" };
+   856→      bf =
+   857→        86.01 * Math.log10(w - n) - 70.041 * Math.log10(h) + 36.76;
+   858→    } else {
+   859→      if (w + hp - n <= 0) return { bf: NaN, category: "—" };
+   860→      bf =
+   861→        163.205 * Math.log10(w + hp - n) - 97.684 * Math.log10(h) - 78.387;
+   862→    }
+   863→    bf = Math.max(0, Math.min(60, bf));
+   864→    let category = "—";
+   865→    if (Number.isFinite(bf)) {
+   866→      if (sex === "male") {
+   867→        if (bf < 6) category = "Essential (2-5%)";
+   868→        else if (bf < 14) category = "Athletes (6-13%)";
+   869→        else if (bf < 18) category = "Fitness (14-17%)";
+   870→        else if (bf < 25) category = "Average (18-24%)";
+   871→        else category = "Obese (>=25%)";
+   872→      } else {
+   873→        if (bf < 14) category = "Essential (10-13%)";
+   874→        else if (bf < 21) category = "Athletes (14-20%)";
+   875→        else if (bf < 25) category = "Fitness (21-24%)";
+   876→        else if (bf < 32) category = "Average (25-31%)";
+   877→        else category = "Obese (>=32%)";
+   878→      }
+   879→    }
+   880→    return { bf, category };
+   881→  }, [system, sex, height, neck, waist, hip]);
+   882→
+   883→  const unitLabel = system === "metric" ? "cm" : "in";
+   884→
+   885→  return (
+   886→    <div className="space-y-5">
+   887→      <div className="flex items-center justify-between gap-3 flex-wrap">
+   888→        <Label className="text-sm font-medium">Measurement system</Label>
+   889→        <UnitToggle value={system} onChange={setSystem} />
+   890→      </div>
+   891→
+   892→      <Field label="Sex">
+   893→        <SexToggle value={sex} onChange={setSex} />
+   894→      </Field>
+   895→
+   896→      <div className="grid sm:grid-cols-2 gap-4">
+   897→        <Field label={`Height (${unitLabel})`}>
+   898→          <Input type="number" value={height} onChange={(e) => setHeight(e.target.value)} className="font-mono" />
+   899→        </Field>
+   900→        <Field label={`Neck (${unitLabel})`}>
+   901→          <Input type="number" value={neck} onChange={(e) => setNeck(e.target.value)} className="font-mono" />
+   902→        </Field>
+   903→        <Field label={`Waist (${unitLabel})`}>
+   904→          <Input type="number" value={waist} onChange={(e) => setWaist(e.target.value)} className="font-mono" />
+   905→        </Field>
+   906→        {sex === "female" && (
+   907→          <Field label={`Hip (${unitLabel})`}>
+   908→            <Input type="number" value={hip} onChange={(e) => setHip(e.target.value)} className="font-mono" />
+   909→          </Field>
+   910→        )}
+   911→      </div>
+   912→
+   913→      {Number.isFinite(result.bf) ? (
+   914→        <ResultStat
+   915→          label="Body fat percentage"
+   916→          value={`${formatNumber(result.bf, 1)} %`}
+   917→          sublabel={result.category}
+   918→          accent="primary"
+   919→        />
+   920→      ) : (
+   921→        <div className="text-center py-10 text-muted-foreground text-sm">
+   922→          Enter valid measurements to estimate body fat. Waist must be larger than neck.
+   923→        </div>
+   924→      )}
+   925→
+   926→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-xs text-muted-foreground font-mono">
+   927→        <strong className="text-foreground font-sans">Formula (US Navy method, all measurements in cm)</strong>
+   928→        <div className="mt-1">
+   929→          Men: 86.010 x LOG10(waist - neck) - 70.041 x LOG10(height) + 36.76
+   930→          <br />
+   931→          Women: 163.205 x LOG10(waist + hip - neck) - 97.684 x LOG10(height) - 78.387
+   932→        </div>
+   933→      </div>
+   934→
+   935→      <HealthDisclaimer />
+   936→    </div>
+   937→  );
+   938→}
+   939→
+   940→// ============================================================
+   941→// 7. Macro Calculator
+   942→// ============================================================
+   943→const MACRO_SPLITS = {
+   944→  lose: { protein: 0.4, carb: 0.35, fat: 0.25 },
+   945→  maintain: { protein: 0.3, carb: 0.4, fat: 0.3 },
+   946→  gain: { protein: 0.3, carb: 0.45, fat: 0.25 },
+   947→} as const;
+   948→
+   949→function MacroCalc() {
+   950→  const [calories, setCalories] = React.useState("2000");
+   951→  const [goal, setGoal] = React.useState<"lose" | "maintain" | "gain">("maintain");
+   952→
+   953→  const cals = parseNumber(calories);
+   954→  const split = MACRO_SPLITS[goal];
+   955→  const proteinG = (cals * split.protein) / 4;
+   956→  const carbG = (cals * split.carb) / 4;
+   957→  const fatG = (cals * split.fat) / 9;
+   958→
+   959→  return (
+   960→    <div className="space-y-5">
+   961→      <div className="grid sm:grid-cols-2 gap-4">
+   962→        <Field label="Daily calorie target (kcal)">
+   963→          <Input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} className="font-mono" />
+   964→        </Field>
+   965→        <Field label="Goal">
+   966→          <Select value={goal} onValueChange={(v) => setGoal(v as typeof goal)}>
+   967→            <SelectTrigger className="w-full">
+   968→              <SelectValue />
+   969→            </SelectTrigger>
+   970→            <SelectContent>
+   971→              <SelectItem value="lose">Lose weight (40/35/25)</SelectItem>
+   972→              <SelectItem value="maintain">Maintain (30/40/30)</SelectItem>
+   973→              <SelectItem value="gain">Gain weight (30/45/25)</SelectItem>
+   974→            </SelectContent>
+   975→          </Select>
+   976→        </Field>
+   977→      </div>
+   978→
+   979→      {cals > 0 ? (
+   980→        <>
+   981→          <div className="grid sm:grid-cols-3 gap-4">
+   982→            <ResultStat
+   983→              label="Protein"
+   984→              value={`${num(proteinG, 0)} g`}
+   985→              sublabel={`${num(cals * split.protein, 0)} kcal (${Math.round(split.protein * 100)}%)`}
+   986→              accent="primary"
+   987→            />
+   988→            <ResultStat
+   989→              label="Carbs"
+   990→              value={`${num(carbG, 0)} g`}
+   991→              sublabel={`${num(cals * split.carb, 0)} kcal (${Math.round(split.carb * 100)}%)`}
+   992→              accent="primary"
+   993→            />
+   994→            <ResultStat
+   995→              label="Fat"
+   996→              value={`${num(fatG, 0)} g`}
+   997→              sublabel={`${num(cals * split.fat, 0)} kcal (${Math.round(split.fat * 100)}%)`}
+   998→              accent="primary"
+   999→            />
+  1000→          </div>
+  1001→
+  1002→          {/* Visual macro bar */}
+  1003→          <div className="space-y-2">
+  1004→            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Macro distribution</div>
+  1005→            <div className="flex h-4 rounded-full overflow-hidden border border-border">
+  1006→              <div className="bg-primary" style={{ width: `${split.protein * 100}%` }} title="Protein" />
+  1007→              <div className="bg-emerald-500" style={{ width: `${split.carb * 100}%` }} title="Carbs" />
+  1008→              <div className="bg-amber-500" style={{ width: `${split.fat * 100}%` }} title="Fat" />
+  1009→            </div>
+  1010→            <div className="flex justify-between text-[10px] text-muted-foreground">
+  1011→              <span>Protein {Math.round(split.protein * 100)}%</span>
+  1012→              <span>Carbs {Math.round(split.carb * 100)}%</span>
+  1013→              <span>Fat {Math.round(split.fat * 100)}%</span>
+  1014→            </div>
+  1015→          </div>
+  1016→        </>
+  1017→      ) : (
+  1018→        <div className="text-center py-10 text-muted-foreground text-sm">
+  1019→          Enter a daily calorie target to compute macros.
+  1020→        </div>
+  1021→      )}
+  1022→
+  1023→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+  1024→        <strong className="text-foreground">Method:</strong> Protein and carbs provide 4 kcal/g, fat provides 9 kcal/g.
+  1025→        Splits: Lose 40/35/25, Maintain 30/40/30, Gain 30/45/25 (protein/carb/fat).
+  1026→      </div>
+  1027→
+  1028→      <HealthDisclaimer />
+  1029→    </div>
+  1030→  );
+  1031→}
+  1032→
+  1033→// ============================================================
+  1034→// 8. Water Intake
+  1035→// ============================================================
+  1036→function WaterCalc() {
+  1037→  const [system, setSystem] = React.useState<"metric" | "imperial">("metric");
+  1038→  const [weight, setWeight] = React.useState("70");
+  1039→  const [exercise, setExercise] = React.useState("30");
+  1040→
+  1041→  const result = React.useMemo(() => {
+  1042→    const weightKg = system === "metric" ? parseNumber(weight) : parseNumber(weight) * KG_PER_LB;
+  1043→    const exMin = parseNumber(exercise);
+  1044→    if (weightKg <= 0) return { ml: NaN, liters: NaN, cups: NaN, baselineCups: 8 };
+  1045→    const ml = weightKg * 35 + Math.max(0, exMin) * (350 / 30);
+  1046→    return {
+  1047→      ml,
+  1048→      liters: ml / 1000,
+  1049→      cups: ml / ML_PER_CUP,
+  1050→      baselineCups: 8,
+  1051→    };
+  1052→  }, [system, weight, exercise]);
+  1053→
+  1054→  return (
+  1055→    <div className="space-y-5">
+  1056→      <div className="flex items-center justify-between gap-3 flex-wrap">
+  1057→        <Label className="text-sm font-medium">Measurement system</Label>
+  1058→        <UnitToggle value={system} onChange={setSystem} />
+  1059→      </div>
+  1060→
+  1061→      <div className="grid sm:grid-cols-2 gap-4">
+  1062→        <Field label={`Weight (${system === "metric" ? "kg" : "lb"})`}>
+  1063→          <Input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} className="font-mono" />
+  1064→        </Field>
+  1065→        <Field label="Exercise time (min/day)" hint="+350 ml per 30 min of exercise">
+  1066→          <Input type="number" value={exercise} onChange={(e) => setExercise(e.target.value)} className="font-mono" />
+  1067→        </Field>
+  1068→      </div>
+  1069→
+  1070→      {Number.isFinite(result.liters) ? (
+  1071→        <div className="grid sm:grid-cols-2 gap-4">
+  1072→          <ResultStat
+  1073→            label="Daily water intake"
+  1074→            value={`${formatNumber(result.liters, 2)} L`}
+  1075→            sublabel={`${num(result.ml, 0)} ml`}
+  1076→            accent="primary"
+  1077→          />
+  1078→          <ResultStat
+  1079→            label="Cups (240 ml each)"
+  1080→            value={`${formatNumber(result.cups, 1)} cups`}
+  1081→            sublabel={`Baseline is ~8 cups/day`}
+  1082→          />
+  1083→        </div>
+  1084→      ) : (
+  1085→        <div className="text-center py-10 text-muted-foreground text-sm">
+  1086→          Enter your weight to estimate daily water intake.
+  1087→        </div>
+  1088→      )}
+  1089→
+  1090→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+  1091→        <strong className="text-foreground">Formula:</strong> Water (ml) = weight(kg) x 35 + exercise_minutes x (350/30).
+  1092→        This is a baseline estimate; needs vary with climate, diet, and individual physiology.
+  1093→      </div>
+  1094→
+  1095→      <HealthDisclaimer />
+  1096→    </div>
+  1097→  );
+  1098→}
+  1099→
+  1100→// ============================================================
+  1101→// 9. Running Pace
+  1102→// ============================================================
+  1103→function PaceCalc() {
+  1104→  const [unit, setUnit] = React.useState<"km" | "mi">("km");
+  1105→  const [distance, setDistance] = React.useState("5");
+  1106→  const [time, setTime] = React.useState("25:00");
+  1107→
+  1108→  const r = React.useMemo(() => {
+  1109→    const d = parseNumber(distance);
+  1110→    const totalSec = parseDuration(time);
+  1111→    if (d <= 0 || totalSec <= 0) return null;
+  1112→    const distKm = unit === "km" ? d : d * 1.609344;
+  1113→    const distMi = unit === "mi" ? d : d / 1.609344;
+  1114→    const secPerKm = totalSec / distKm;
+  1115→    const secPerMi = totalSec / distMi;
+  1116→    const speedKmh = distKm / (totalSec / 3600);
+  1117→    const speedMph = distMi / (totalSec / 3600);
+  1118→    return { secPerKm, secPerMi, speedKmh, speedMph, totalSec };
+  1119→  }, [unit, distance, time]);
+  1120→
+  1121→  return (
+  1122→    <div className="space-y-5">
+  1123→      <div className="flex items-center justify-between gap-3 flex-wrap">
+  1124→        <Label className="text-sm font-medium">Distance unit</Label>
+  1125→        <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
+  1126→          {(["km", "mi"] as const).map((u) => (
+  1127→            <button
+  1128→              key={u}
+  1129→              type="button"
+  1130→              onClick={() => setUnit(u)}
+  1131→              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+  1132→                unit === u ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+  1133→              }`}
+  1134→            >
+  1135→              {u === "km" ? "Kilometers" : "Miles"}
+  1136→            </button>
+  1137→          ))}
+  1138→        </div>
+  1139→      </div>
+  1140→
+  1141→      <div className="grid sm:grid-cols-2 gap-4">
+  1142→        <Field label={`Distance (${unit})`}>
+  1143→          <Input type="number" value={distance} onChange={(e) => setDistance(e.target.value)} className="font-mono" />
+  1144→        </Field>
+  1145→        <Field label="Time (HH:MM:SS or MM:SS)" hint="e.g. 25:00 or 1:05:30">
+  1146→          <Input value={time} onChange={(e) => setTime(e.target.value)} className="font-mono" placeholder="25:00" />
+  1147→        </Field>
+  1148→      </div>
+  1149→
+  1150→      {r ? (
+  1151→        <>
+  1152→          <div className="grid sm:grid-cols-2 gap-4">
+  1153→            <ResultStat label="Pace per km" value={`${formatPace(r.secPerKm)} /km`} accent="primary" />
+  1154→            <ResultStat label="Pace per mile" value={`${formatPace(r.secPerMi)} /mi`} />
+  1155→          </div>
+  1156→          <div className="grid sm:grid-cols-2 gap-4">
+  1157→            <ResultStat label="Speed (km/h)" value={formatNumber(r.speedKmh, 2)} />
+  1158→            <ResultStat label="Speed (mph)" value={formatNumber(r.speedMph, 2)} />
+  1159→          </div>
+  1160→          <div className="rounded-2xl border border-border bg-card p-4">
+  1161→            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Total time</div>
+  1162→            <div className="text-lg font-bold font-mono">{formatDuration(r.totalSec)}</div>
+  1163→          </div>
+  1164→        </>
+  1165→      ) : (
+  1166→        <div className="text-center py-10 text-muted-foreground text-sm">
+  1167→          Enter a distance and a valid time to compute pace.
+  1168→        </div>
+  1169→      )}
+  1170→
+  1171→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+  1172→        <strong className="text-foreground">Method:</strong> Pace = total_time / distance. Speed = distance / total_time.
+  1173→        1 mile = 1.609344 km. Time accepts HH:MM:SS or MM:SS format.
+  1174→      </div>
+  1175→
+  1176→      <HealthDisclaimer />
+  1177→    </div>
+  1178→  );
+  1179→}
+  1180→
+  1181→// ============================================================
+  1182→// 10. Heart Rate Zone
+  1183→// ============================================================
+  1184→const HR_ZONES = [
+  1185→  { id: 1, name: "Zone 1 — Very Light", lo: 0.5, hi: 0.6, benefit: "Recovery, warm-up" },
+  1186→  { id: 2, name: "Zone 2 — Light", lo: 0.6, hi: 0.7, benefit: "Endurance, fat burn" },
+  1187→  { id: 3, name: "Zone 3 — Moderate", lo: 0.7, hi: 0.8, benefit: "Aerobic fitness" },
+  1188→  { id: 4, name: "Zone 4 — Hard", lo: 0.8, hi: 0.9, benefit: "Anaerobic threshold" },
+  1189→  { id: 5, name: "Zone 5 — Maximum", lo: 0.9, hi: 1.0, benefit: "Peak performance, intervals" },
+  1190→] as const;
+  1191→
+  1192→function HeartRateCalc() {
+  1193→  const [age, setAge] = React.useState("30");
+  1194→  const [resting, setResting] = React.useState("");
+  1195→
+  1196→  const ageN = parseNumber(age);
+  1197→  const restN = parseNumber(resting);
+  1198→  const maxHr = ageN > 0 ? 220 - ageN : NaN;
+  1199→  const useKarvonen = restN > 0 && Number.isFinite(maxHr);
+  1200→
+  1201→  const zoneBpm = (lo: number, hi: number): [number, number] => {
+  1202→    if (!Number.isFinite(maxHr)) return [NaN, NaN];
+  1203→    if (useKarvonen) {
+  1204→      const reserve = maxHr - restN;
+  1205→      return [Math.round(reserve * lo + restN), Math.round(reserve * hi + restN)];
+  1206→    }
+  1207→    return [Math.round(maxHr * lo), Math.round(maxHr * hi)];
+  1208→  };
+  1209→
+  1210→  return (
+  1211→    <div className="space-y-5">
+  1212→      <div className="grid sm:grid-cols-2 gap-4">
+  1213→        <Field label="Age (years)">
+  1214→          <Input type="number" value={age} onChange={(e) => setAge(e.target.value)} className="font-mono" />
+  1215→        </Field>
+  1216→        <Field label="Resting heart rate (bpm, optional)" hint="Enables Karvonen formula">
+  1217→          <Input type="number" value={resting} onChange={(e) => setResting(e.target.value)} className="font-mono" placeholder="e.g. 60" />
+  1218→        </Field>
+  1219→      </div>
+  1220→
+  1221→      {Number.isFinite(maxHr) ? (
+  1222→        <>
+  1223→          <ResultStat
+  1224→            label="Maximum heart rate"
+  1225→            value={`${num(maxHr, 0)} bpm`}
+  1226→            sublabel={`220 - age (${useKarvonen ? "Karvonen zones with resting HR" : "% of max HR"})`}
+  1227→            accent="primary"
+  1228→          />
+  1229→
+  1230→          <div className="space-y-2">
+  1231→            {HR_ZONES.map((z) => {
+  1232→              const [loBpm, hiBpm] = zoneBpm(z.lo, z.hi);
+  1233→              const widthPct = (z.hi - z.lo) * 100;
+  1234→              const colors = ["bg-blue-500", "bg-emerald-500", "bg-yellow-500", "bg-orange-500", "bg-red-500"];
+  1235→              return (
+  1236→                <div key={z.id} className="rounded-xl border border-border bg-card p-3">
+  1237→                  <div className="flex items-center justify-between gap-3 mb-1">
+  1238→                    <div className="flex items-center gap-2">
+  1239→                      <span className={`inline-block size-3 rounded-sm ${colors[z.id - 1]}`} />
+  1240→                      <span className="text-sm font-medium">{z.name}</span>
+  1241→                    </div>
+  1242→                    <span className="text-sm font-mono font-bold">
+  1243→                      {Number.isFinite(loBpm) ? `${loBpm}-${hiBpm} bpm` : "—"}
+  1244→                    </span>
+  1245→                  </div>
+  1246→                  <div className="flex items-center gap-2">
+  1247→                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+  1248→                      <div
+  1249→                        className={`h-full ${colors[z.id - 1]}`}
+  1250→                        style={{ width: `${widthPct}%`, marginLeft: `${z.lo * 100}%` }}
+  1251→                      />
+  1252→                    </div>
+  1253→                    <span className="text-[10px] text-muted-foreground w-24 text-right">{z.benefit}</span>
+  1254→                  </div>
+  1255→                  <div className="text-[10px] text-muted-foreground mt-0.5">
+  1256→                    {Math.round(z.lo * 100)}-{Math.round(z.hi * 100)}% of max HR
+  1257→                  </div>
+  1258→                </div>
+  1259→              );
+  1260→            })}
+  1261→          </div>
+  1262→        </>
+  1263→      ) : (
+  1264→        <div className="text-center py-10 text-muted-foreground text-sm">
+  1265→          Enter your age to compute heart rate zones.
+  1266→        </div>
+  1267→      )}
+  1268→
+  1269→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+  1270→        <strong className="text-foreground">Method:</strong> Max HR = 220 - age. Zones are 50-60%, 60-70%, 70-80%, 80-90%, 90-100% of max HR.
+  1271→        When resting HR is provided, the Karvonen formula is used: target = (maxHR - restHR) x intensity + restHR.
+  1272→      </div>
+  1273→
+  1274→      <HealthDisclaimer />
+  1275→    </div>
+  1276→  );
+  1277→}
+  1278→
+  1279→// ============================================================
+  1280→// 11. Waist-to-Hip Ratio
+  1281→// ============================================================
+  1282→function WaistHipCalc() {
+  1283→  const [system, setSystem] = React.useState<"metric" | "imperial">("metric");
+  1284→  const [sex, setSex] = React.useState<"male" | "female">("male");
+  1285→  const [waist, setWaist] = React.useState("85");
+  1286→  const [hip, setHip] = React.useState("95");
+  1287→
+  1288→  const r = React.useMemo(() => {
+  1289→    const w = parseNumber(waist);
+  1290→    const h = parseNumber(hip);
+  1291→    if (w <= 0 || h <= 0) return { whr: NaN, category: "—", level: "default" as const };
+  1292→    const whr = w / h;
+  1293→    let category = "—";
+  1294→    let level: "success" | "warning" | "default" = "default";
+  1295→    if (sex === "male") {
+  1296→      if (whr < 0.9) {
+  1297→        category = "Low risk";
+  1298→        level = "success";
+  1299→      } else if (whr < 1.0) {
+  1300→        category = "Moderate risk";
+  1301→        level = "warning";
+  1302→      } else {
+  1303→        category = "High risk";
+  1304→        level = "warning";
+  1305→      }
+  1306→    } else {
+  1307→      if (whr < 0.8) {
+  1308→        category = "Low risk";
+  1309→        level = "success";
+  1310→      } else if (whr < 0.85) {
+  1311→        category = "Moderate risk";
+  1312→        level = "warning";
+  1313→      } else {
+  1314→        category = "High risk";
+  1315→        level = "warning";
+  1316→      }
+  1317→    }
+  1318→    return { whr, category, level };
+  1319→  }, [waist, hip, sex]);
+  1320→
+  1321→  const unitLabel = system === "metric" ? "cm" : "in";
+  1322→
+  1323→  return (
+  1324→    <div className="space-y-5">
+  1325→      <div className="flex items-center justify-between gap-3 flex-wrap">
+  1326→        <Label className="text-sm font-medium">Measurement system</Label>
+  1327→        <UnitToggle value={system} onChange={setSystem} />
+  1328→      </div>
+  1329→
+  1330→      <Field label="Sex">
+  1331→        <SexToggle value={sex} onChange={setSex} />
+  1332→      </Field>
+  1333→
+  1334→      <div className="grid sm:grid-cols-2 gap-4">
+  1335→        <Field label={`Waist (${unitLabel})`} hint="Measure at the narrowest point, just above the navel">
+  1336→          <Input type="number" value={waist} onChange={(e) => setWaist(e.target.value)} className="font-mono" />
+  1337→        </Field>
+  1338→        <Field label={`Hip (${unitLabel})`} hint="Measure at the widest point of the hips/buttocks">
+  1339→          <Input type="number" value={hip} onChange={(e) => setHip(e.target.value)} className="font-mono" />
+  1340→        </Field>
+  1341→      </div>
+  1342→
+  1343→      {Number.isFinite(r.whr) ? (
+  1344→        <ResultStat
+  1345→          label="Waist-to-hip ratio"
+  1346→          value={formatNumber(r.whr, 3)}
+  1347→          sublabel={r.category}
+  1348→          accent={r.level}
+  1349→        />
+  1350→      ) : (
+  1351→        <div className="text-center py-10 text-muted-foreground text-sm">
+  1352→          Enter waist and hip measurements to compute your WHR.
+  1353→        </div>
+  1354→      )}
+  1355→
+  1356→      <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+  1357→        <strong className="text-foreground">WHO risk thresholds:</strong>
+  1358→        <div className="mt-1">
+  1359→          Men: Low &lt; 0.90, Moderate 0.90-0.99, High &gt;= 1.00.
+  1360→          <br />
+  1361→          Women: Low &lt; 0.80, Moderate 0.80-0.84, High &gt;= 0.85.
+  1362→        </div>
+  1363→      </div>
+  1364→
+  1365→      <HealthDisclaimer />
+  1366→    </div>
+  1367→  );
+  1368→}
+  1369→
+  1370→// ============================================================
+  1371→// Switcher
+  1372→// ============================================================
+  1373→export function HealthCalcs({ calcId }: { calcId: string }) {
+  1374→  switch (calcId) {
+  1375→    case "bmi":
+  1376→      return <BMICalc />;
+  1377→    case "bmr":
+  1378→      return <BMRCalc />;
+  1379→    case "tdee":
+  1380→      return <TDEECalc />;
+  1381→    case "calorie":
+  1382→      return <CalorieCalc />;
+  1383→    case "ideal-weight":
+  1384→      return <IdealWeightCalc />;
+  1385→    case "body-fat":
+  1386→      return <BodyFatCalc />;
+  1387→    case "macro":
+  1388→      return <MacroCalc />;
+  1389→    case "water":
+  1390→      return <WaterCalc />;
+  1391→    case "pace":
+  1392→      return <PaceCalc />;
+  1393→    case "heart-rate":
+  1394→      return <HeartRateCalc />;
+  1395→    case "waist-hip":
+  1396→      return <WaistHipCalc />;
+  1397→    default:
+  1398→      return null;
+  1399→  }
+  1400→}
+  1401→

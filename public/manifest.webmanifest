@@ -1,0 +1,20 @@
+{
+  "name": "CALCORA — Every Calculation. One Beautiful Experience.",
+  "short_name": "CALCORA",
+  "description": "Premium all-in-one calculator platform: basic, scientific, financial, tax, health, business, marketing, unit converters, date & time.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8FAFC",
+  "theme_color": "#635BFF",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities", "education"]
+}

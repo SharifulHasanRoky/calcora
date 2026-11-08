@@ -1,0 +1,1446 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { Copy, Download } from "lucide-react";
+     5→import { Field, ResultStat, money, num } from "@/components/calc-page-shell";
+     6→import { Input } from "@/components/ui/input";
+     7→import { Button } from "@/components/ui/button";
+     8→import {
+     9→  Select,
+    10→  SelectContent,
+    11→  SelectItem,
+    12→  SelectTrigger,
+    13→  SelectValue,
+    14→} from "@/components/ui/select";
+    15→import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+    16→import { parseNumber } from "@/lib/math-engine";
+    17→import { toast } from "sonner";
+    18→
+    19→/* ------------------------------------------------------------------ */
+    20→/* Shared bits                                                          */
+    21→/* ------------------------------------------------------------------ */
+    22→
+    23→const CURRENCIES = ["USD", "EUR", "GBP", "INR", "BDT", "AUD", "CAD", "SGD"] as const;
+    24→type Currency = (typeof CURRENCIES)[number];
+    25→
+    26→function CurrencySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    27→  return (
+    28→    <Field label="Currency">
+    29→      <Select value={value} onValueChange={onChange}>
+    30→        <SelectTrigger className="w-full">
+    31→          <SelectValue placeholder="Select currency" />
+    32→        </SelectTrigger>
+    33→        <SelectContent>
+    34→          {CURRENCIES.map((c) => (
+    35→            <SelectItem key={c} value={c}>
+    36→              {c}
+    37→            </SelectItem>
+    38→          ))}
+    39→        </SelectContent>
+    40→      </Select>
+    41→    </Field>
+    42→  );
+    43→}
+    44→
+    45→function FormulaBox({ children }: { children: React.ReactNode }) {
+    46→  return (
+    47→    <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+    48→      <strong className="text-foreground">Formula:</strong> {children}
+    49→    </div>
+    50→  );
+    51→}
+    52→
+    53→function CopyableStat({
+    54→  label,
+    55→  displayValue,
+    56→  accent,
+    57→  sublabel,
+    58→}: {
+    59→  label: string;
+    60→  displayValue: string;
+    61→  accent?: "primary" | "success" | "warning" | "default";
+    62→  sublabel?: string;
+    63→}) {
+    64→  return (
+    65→    <div className="relative">
+    66→      <Button
+    67→        variant="ghost"
+    68→        size="icon"
+    69→        className="absolute top-2 right-2 size-7 text-muted-foreground hover:text-foreground"
+    70→        onClick={() => {
+    71→          navigator.clipboard?.writeText(displayValue);
+    72→          toast.success(`${label} copied`);
+    73→        }}
+    74→        aria-label={`Copy ${label}`}
+    75→      >
+    76→        <Copy className="size-3.5" />
+    77→      </Button>
+    78→      <ResultStat label={label} value={displayValue} accent={accent} sublabel={sublabel} />
+    79→    </div>
+    80→  );
+    81→}
+    82→
+    83→function CopyRowButton({ value, label = "Result" }: { value: string; label?: string }) {
+    84→  return (
+    85→    <Button
+    86→      variant="outline"
+    87→      size="sm"
+    88→      onClick={() => {
+    89→        navigator.clipboard?.writeText(value);
+    90→        toast.success(`${label} copied`);
+    91→      }}
+    92→    >
+    93→      <Copy className="size-3.5" /> Copy
+    94→    </Button>
+    95→  );
+    96→}
+    97→
+    98→/** PMT — standard amortizing payment. r = periodic rate, n = total periods. */
+    99→function pmt(principal: number, r: number, n: number): number {
+   100→  if (n <= 0) return 0;
+   101→  if (r === 0) return principal / n;
+   102→  return (principal * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+   103→}
+   104→
+   105→/** Future value of a present sum with periodic compounding. */
+   106→function fvLumpSum(pv: number, r: number, n: number, t: number): number {
+   107→  if (n <= 0) return pv;
+   108→  return pv * Math.pow(1 + r / n, n * t);
+   109→}
+   110→
+   111→/** Future value of an ordinary annuity (end-of-period contributions). */
+   112→function fvAnnuity(pmt: number, r: number, n: number, t: number): number {
+   113→  if (n <= 0) return 0;
+   114→  const periods = n * t;
+   115→  const rate = r / n;
+   116→  if (rate === 0) return pmt * periods;
+   117→  return pmt * ((Math.pow(1 + rate, periods) - 1) / rate);
+   118→}
+   119→
+   120→/* ------------------------------------------------------------------ */
+   121→/* 1. Loan                                                              */
+   122→/* ------------------------------------------------------------------ */
+   123→
+   124→function LoanCalc() {
+   125→  const [currency, setCurrency] = React.useState<string>("USD");
+   126→  const [principal, setPrincipal] = React.useState("250000");
+   127→  const [rate, setRate] = React.useState("6.5");
+   128→  const [term, setTerm] = React.useState("30");
+   129→
+   130→  const calc = React.useMemo(() => {
+   131→    const P = parseNumber(principal);
+   132→    const annualRate = parseNumber(rate) / 100;
+   133→    const years = parseNumber(term);
+   134→    const n = Math.max(1, Math.round(years * 12));
+   135→    const r = annualRate / 12;
+   136→    const monthly = pmt(P, r, n);
+   137→    const totalPaid = monthly * n;
+   138→    const totalInterest = totalPaid - P;
+   139→
+   140→    const rows: { month: number; payment: number; principal: number; interest: number; balance: number }[] = [];
+   141→    let balance = P;
+   142→    const limit = Math.min(12, n);
+   143→    for (let i = 1; i <= limit; i++) {
+   144→      const interestPart = balance * r;
+   145→      const principalPart = monthly - interestPart;
+   146→      balance -= principalPart;
+   147→      rows.push({
+   148→        month: i,
+   149→        payment: monthly,
+   150→        principal: principalPart,
+   151→        interest: interestPart,
+   152→        balance: Math.max(0, balance),
+   153→      });
+   154→    }
+   155→    return { P, monthly, totalPaid, totalInterest, n, rows };
+   156→  }, [principal, rate, term]);
+   157→
+   158→  return (
+   159→    <div className="space-y-6">
+   160→      <div className="grid sm:grid-cols-2 gap-4">
+   161→        <CurrencySelect value={currency} onChange={setCurrency} />
+   162→        <div className="hidden sm:block" />
+   163→        <Field label="Principal">
+   164→          <Input value={principal} onChange={(e) => setPrincipal(e.target.value)} inputMode="decimal" />
+   165→        </Field>
+   166→        <Field label="Annual interest rate (%)">
+   167→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+   168→        </Field>
+   169→        <Field label="Term (years)">
+   170→          <Input value={term} onChange={(e) => setTerm(e.target.value)} inputMode="decimal" />
+   171→        </Field>
+   172→        <div className="text-xs text-muted-foreground self-end pb-2">
+   173→          {calc.n} monthly payments
+   174→        </div>
+   175→      </div>
+   176→
+   177→      <div className="grid sm:grid-cols-3 gap-4">
+   178→        <CopyableStat label="Monthly Payment" displayValue={money(calc.monthly, currency)} accent="primary" />
+   179→        <ResultStat label="Total Paid" value={money(calc.totalPaid, currency)} accent="default" />
+   180→        <ResultStat label="Total Interest" value={money(calc.totalInterest, currency)} accent="warning" />
+   181→      </div>
+   182→
+   183→      <div className="space-y-3">
+   184→        <div className="flex items-center justify-between">
+   185→          <h3 className="text-sm font-semibold">Amortization preview (first 12 months)</h3>
+   186→          <CopyRowButton
+   187→            label="Amortization table"
+   188→            value={
+   189→              "Month,Payment,Principal,Interest,Balance\n" +
+   190→              calc.rows
+   191→                .map(
+   192→                  (r) =>
+   193→                    `${r.month},${money(r.payment, currency)},${money(r.principal, currency)},${money(
+   194→                      r.interest,
+   195→                      currency
+   196→                    )},${money(r.balance, currency)}`
+   197→                )
+   198→                .join("\n")
+   199→            }
+   200→          />
+   201→        </div>
+   202→        <div className="rounded-xl border border-border overflow-hidden">
+   203→          <div className="max-h-72 overflow-y-auto">
+   204→            <div className="grid grid-cols-5 gap-2 px-3 py-2 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0">
+   205→              <div>Month</div>
+   206→              <div className="text-right">Payment</div>
+   207→              <div className="text-right">Principal</div>
+   208→              <div className="text-right">Interest</div>
+   209→              <div className="text-right">Balance</div>
+   210→            </div>
+   211→            {calc.rows.map((r) => (
+   212→              <div
+   213→                key={r.month}
+   214→                className="grid grid-cols-5 gap-2 px-3 py-2 text-sm font-mono border-t border-border/60"
+   215→              >
+   216→                <div>{r.month}</div>
+   217→                <div className="text-right">{money(r.payment, currency)}</div>
+   218→                <div className="text-right">{money(r.principal, currency)}</div>
+   219→                <div className="text-right text-muted-foreground">{money(r.interest, currency)}</div>
+   220→                <div className="text-right">{money(r.balance, currency)}</div>
+   221→              </div>
+   222→            ))}
+   223→          </div>
+   224→        </div>
+   225→      </div>
+   226→
+   227→      <FormulaBox>
+   228→        M = P · r(1+r)<sup>n</sup> / ((1+r)<sup>n</sup> − 1), where r = annual rate ÷ 12 and n = years × 12. Total
+   229→        interest = M·n − P.
+   230→      </FormulaBox>
+   231→    </div>
+   232→  );
+   233→}
+   234→
+   235→/* ------------------------------------------------------------------ */
+   236→/* 2. Mortgage                                                          */
+   237→/* ------------------------------------------------------------------ */
+   238→
+   239→function MortgageCalc() {
+   240→  const [currency, setCurrency] = React.useState<string>("USD");
+   241→  const [homePrice, setHomePrice] = React.useState("400000");
+   242→  const [downPayment, setDownPayment] = React.useState("80000");
+   243→  const [rate, setRate] = React.useState("6.8");
+   244→  const [term, setTerm] = React.useState("30");
+   245→  const [propertyTaxRate, setPropertyTaxRate] = React.useState("1.1");
+   246→  const [homeInsurance, setHomeInsurance] = React.useState("1400");
+   247→  const [pmiRate, setPmiRate] = React.useState("0.5");
+   248→
+   249→  const calc = React.useMemo(() => {
+   250→    const price = parseNumber(homePrice);
+   251→    const down = parseNumber(downPayment);
+   252→    const principal = Math.max(0, price - down);
+   253→    const annualRate = parseNumber(rate) / 100;
+   254→    const years = parseNumber(term);
+   255→    const n = Math.max(1, Math.round(years * 12));
+   256→    const r = annualRate / 12;
+   257→
+   258→    const pi = pmt(principal, r, n); // principal + interest
+   259→    const monthlyPropTax = (parseNumber(propertyTaxRate) / 100 * price) / 12;
+   260→    const monthlyIns = parseNumber(homeInsurance) / 12;
+   261→    const downPct = price > 0 ? down / price : 0;
+   262→    const needsPmi = downPct < 0.2;
+   263→    const monthlyPmi = needsPmi ? (parseNumber(pmiRate) / 100 * principal) / 12 : 0;
+   264→
+   265→    const totalMonthly = pi + monthlyPropTax + monthlyIns + monthlyPmi;
+   266→    const totalPaid = totalMonthly * n;
+   267→    const totalInterest = pi * n - principal;
+   268→
+   269→    return {
+   270→      principal,
+   271→      pi,
+   272→      monthlyPropTax,
+   273→      monthlyIns,
+   274→      monthlyPmi,
+   275→      needsPmi,
+   276→      downPct,
+   277→      totalMonthly,
+   278→      totalPaid,
+   279→      totalInterest,
+   280→      n,
+   281→    };
+   282→  }, [homePrice, downPayment, rate, term, propertyTaxRate, homeInsurance, pmiRate]);
+   283→
+   284→  return (
+   285→    <div className="space-y-6">
+   286→      <div className="grid sm:grid-cols-2 gap-4">
+   287→        <CurrencySelect value={currency} onChange={setCurrency} />
+   288→        <div className="hidden sm:block" />
+   289→        <Field label="Home price">
+   290→          <Input value={homePrice} onChange={(e) => setHomePrice(e.target.value)} inputMode="decimal" />
+   291→        </Field>
+   292→        <Field label="Down payment">
+   293→          <Input value={downPayment} onChange={(e) => setDownPayment(e.target.value)} inputMode="decimal" />
+   294→        </Field>
+   295→        <Field label="Interest rate (%)" hint={`Down payment: ${num(calc.downPct * 100, 1)}% of price`}>
+   296→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+   297→        </Field>
+   298→        <Field label="Term (years)">
+   299→          <Input value={term} onChange={(e) => setTerm(e.target.value)} inputMode="decimal" />
+   300→        </Field>
+   301→        <Field label="Property tax (% / year)">
+   302→          <Input value={propertyTaxRate} onChange={(e) => setPropertyTaxRate(e.target.value)} inputMode="decimal" />
+   303→        </Field>
+   304→        <Field label="Home insurance ($ / year)">
+   305→          <Input value={homeInsurance} onChange={(e) => setHomeInsurance(e.target.value)} inputMode="decimal" />
+   306→        </Field>
+   307→        <Field
+   308→          label="PMI (% / year)"
+   309→          hint={calc.needsPmi ? "Applies — down payment under 20%" : "Not required — down payment is 20% or more"}
+   310→        >
+   311→          <Input value={pmiRate} onChange={(e) => setPmiRate(e.target.value)} inputMode="decimal" />
+   312→        </Field>
+   313→        <Field label="Loan principal">
+   314→          <Input value={money(calc.principal, currency)} readOnly className="bg-muted/40 font-mono" />
+   315→        </Field>
+   316→      </div>
+   317→
+   318→      <div className="grid sm:grid-cols-2 gap-4">
+   319→        <CopyableStat label="Total Monthly Payment" displayValue={money(calc.totalMonthly, currency)} accent="primary" />
+   320→        <ResultStat label="Loan Principal" value={money(calc.principal, currency)} accent="default" />
+   321→      </div>
+   322→
+   323→      <div className="rounded-2xl border border-border bg-card p-5">
+   324→        <h3 className="text-sm font-semibold mb-3">Monthly breakdown</h3>
+   325→        <div className="space-y-2 text-sm">
+   326→          <BreakdownRow label="Principal & interest" value={money(calc.pi, currency)} />
+   327→          <BreakdownRow label="Property tax" value={money(calc.monthlyPropTax, currency)} />
+   328→          <BreakdownRow label="Home insurance" value={money(calc.monthlyIns, currency)} />
+   329→          <BreakdownRow
+   330→            label="PMI"
+   331→            value={calc.needsPmi ? money(calc.monthlyPmi, currency) : "— (not required)"}
+   332→          />
+   333→          <div className="border-t border-border pt-2 mt-2 flex items-center justify-between">
+   334→            <span className="font-semibold">Total monthly</span>
+   335→            <span className="font-mono font-semibold">{money(calc.totalMonthly, currency)}</span>
+   336→          </div>
+   337→        </div>
+   338→        <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-border">
+   339→          <div>
+   340→            <div className="text-xs text-muted-foreground uppercase tracking-wide">Total of payments</div>
+   341→            <div className="font-mono font-semibold mt-1">{money(calc.totalPaid, currency)}</div>
+   342→          </div>
+   343→          <div>
+   344→            <div className="text-xs text-muted-foreground uppercase tracking-wide">Total interest</div>
+   345→            <div className="font-mono font-semibold mt-1">{money(calc.totalInterest, currency)}</div>
+   346→          </div>
+   347→        </div>
+   348→      </div>
+   349→
+   350→      <FormulaBox>
+   351→        P&amp;I uses the standard PMT formula on (home price − down payment). Add monthly property tax (price × tax% ÷
+   352→        12), insurance (annual ÷ 12), and PMI (principal × pmi% ÷ 12) when down payment &lt; 20%.
+   353→      </FormulaBox>
+   354→    </div>
+   355→  );
+   356→}
+   357→
+   358→function BreakdownRow({ label, value }: { label: string; value: string }) {
+   359→  return (
+   360→    <div className="flex items-center justify-between">
+   361→      <span className="text-muted-foreground">{label}</span>
+   362→      <span className="font-mono">{value}</span>
+   363→    </div>
+   364→  );
+   365→}
+   366→
+   367→/* ------------------------------------------------------------------ */
+   368→/* 3. EMI                                                               */
+   369→/* ------------------------------------------------------------------ */
+   370→
+   371→function EmiCalc() {
+   372→  const [currency, setCurrency] = React.useState<string>("USD");
+   373→  const [principal, setPrincipal] = React.useState("500000");
+   374→  const [rate, setRate] = React.useState("9.5");
+   375→  const [tenure, setTenure] = React.useState("60");
+   376→
+   377→  const calc = React.useMemo(() => {
+   378→    const P = parseNumber(principal);
+   379→    const annualRate = parseNumber(rate) / 100;
+   380→    const n = Math.max(1, Math.round(parseNumber(tenure)));
+   381→    const r = annualRate / 12;
+   382→    const emi = pmt(P, r, n);
+   383→    const total = emi * n;
+   384→    const interest = total - P;
+   385→    return { P, emi, total, interest, n };
+   386→  }, [principal, rate, tenure]);
+   387→
+   388→  return (
+   389→    <div className="space-y-6">
+   390→      <div className="grid sm:grid-cols-2 gap-4">
+   391→        <CurrencySelect value={currency} onChange={setCurrency} />
+   392→        <div className="hidden sm:block" />
+   393→        <Field label="Principal">
+   394→          <Input value={principal} onChange={(e) => setPrincipal(e.target.value)} inputMode="decimal" />
+   395→        </Field>
+   396→        <Field label="Annual interest rate (%)">
+   397→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+   398→        </Field>
+   399→        <Field label="Tenure (months)">
+   400→          <Input value={tenure} onChange={(e) => setTenure(e.target.value)} inputMode="decimal" />
+   401→        </Field>
+   402→        <div className="text-xs text-muted-foreground self-end pb-2">{calc.n} monthly installments</div>
+   403→      </div>
+   404→
+   405→      <div className="grid sm:grid-cols-3 gap-4">
+   406→        <CopyableStat label="Monthly EMI" displayValue={money(calc.emi, currency)} accent="primary" />
+   407→        <ResultStat label="Total Interest" value={money(calc.interest, currency)} accent="warning" />
+   408→        <ResultStat label="Total Payment" value={money(calc.total, currency)} accent="default" />
+   409→      </div>
+   410→
+   411→      <FormulaBox>
+   412→        EMI = P · r(1+r)<sup>n</sup> / ((1+r)<sup>n</sup> − 1), where r = annual rate ÷ 12 and n = tenure in months.
+   413→      </FormulaBox>
+   414→    </div>
+   415→  );
+   416→}
+   417→
+   418→/* ------------------------------------------------------------------ */
+   419→/* 4. Compound Interest                                                 */
+   420→/* ------------------------------------------------------------------ */
+   421→
+   422→const COMPOUND_FREQ: Record<string, number> = {
+   423→  annually: 1,
+   424→  semiannually: 2,
+   425→  quarterly: 4,
+   426→  monthly: 12,
+   427→  daily: 365,
+   428→};
+   429→
+   430→function CompoundInterestCalc() {
+   431→  const [currency, setCurrency] = React.useState<string>("USD");
+   432→  const [principal, setPrincipal] = React.useState("10000");
+   433→  const [rate, setRate] = React.useState("7");
+   434→  const [freq, setFreq] = React.useState("monthly");
+   435→  const [years, setYears] = React.useState("10");
+   436→  const [monthlyContribution, setMonthlyContribution] = React.useState("250");
+   437→
+   438→  const calc = React.useMemo(() => {
+   439→    const P = parseNumber(principal);
+   440→    const r = parseNumber(rate) / 100;
+   441→    const t = parseNumber(years);
+   442→    const n = COMPOUND_FREQ[freq] ?? 12;
+   443→    const monthlyPmt = parseNumber(monthlyContribution);
+   444→    // Convert monthly contribution to per-period contribution matching compounding frequency
+   445→    const pmtPerPeriod = (monthlyPmt * 12) / n;
+   446→
+   447→    const fvPrincipal = fvLumpSum(P, r, n, t);
+   448→    const fvContrib = fvAnnuity(pmtPerPeriod, r, n, t);
+   449→    const amount = fvPrincipal + fvContrib;
+   450→    const totalContributions = P + monthlyPmt * 12 * t;
+   451→    const interestEarned = amount - totalContributions;
+   452→
+   453→    return { P, amount, totalContributions, interestEarned };
+   454→  }, [principal, rate, freq, years, monthlyContribution]);
+   455→
+   456→  return (
+   457→    <div className="space-y-6">
+   458→      <div className="grid sm:grid-cols-2 gap-4">
+   459→        <CurrencySelect value={currency} onChange={setCurrency} />
+   460→        <div className="hidden sm:block" />
+   461→        <Field label="Principal">
+   462→          <Input value={principal} onChange={(e) => setPrincipal(e.target.value)} inputMode="decimal" />
+   463→        </Field>
+   464→        <Field label="Annual interest rate (%)">
+   465→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+   466→        </Field>
+   467→        <Field label="Compounding frequency">
+   468→          <Select value={freq} onValueChange={setFreq}>
+   469→            <SelectTrigger className="w-full">
+   470→              <SelectValue />
+   471→            </SelectTrigger>
+   472→            <SelectContent>
+   473→              <SelectItem value="annually">Annually</SelectItem>
+   474→              <SelectItem value="semiannually">Semi-annually</SelectItem>
+   475→              <SelectItem value="quarterly">Quarterly</SelectItem>
+   476→              <SelectItem value="monthly">Monthly</SelectItem>
+   477→              <SelectItem value="daily">Daily</SelectItem>
+   478→            </SelectContent>
+   479→          </Select>
+   480→        </Field>
+   481→        <Field label="Time (years)">
+   482→          <Input value={years} onChange={(e) => setYears(e.target.value)} inputMode="decimal" />
+   483→        </Field>
+   484→        <Field label="Monthly contribution (optional)">
+   485→          <Input value={monthlyContribution} onChange={(e) => setMonthlyContribution(e.target.value)} inputMode="decimal" />
+   486→        </Field>
+   487→      </div>
+   488→
+   489→      <div className="grid sm:grid-cols-3 gap-4">
+   490→        <CopyableStat label="Final Amount" displayValue={money(calc.amount, currency)} accent="primary" />
+   491→        <ResultStat label="Total Contributions" value={money(calc.totalContributions, currency)} accent="default" />
+   492→        <ResultStat label="Interest Earned" value={money(calc.interestEarned, currency)} accent="success" />
+   493→      </div>
+   494→
+   495→      <FormulaBox>
+   496→        A = P(1 + r/n)<sup>nt</sup> + PMT · [((1 + r/n)<sup>nt</sup> − 1) / (r/n)], where PMT is the contribution per
+   497→        compounding period (monthly contribution × 12 ÷ n).
+   498→      </FormulaBox>
+   499→    </div>
+   500→  );
+   501→}
+   502→
+   503→/* ------------------------------------------------------------------ */
+   504→/* 5. Simple Interest                                                   */
+   505→/* ------------------------------------------------------------------ */
+   506→
+   507→function SimpleInterestCalc() {
+   508→  const [currency, setCurrency] = React.useState<string>("USD");
+   509→  const [principal, setPrincipal] = React.useState("10000");
+   510→  const [rate, setRate] = React.useState("6");
+   511→  const [years, setYears] = React.useState("5");
+   512→
+   513→  const calc = React.useMemo(() => {
+   514→    const P = parseNumber(principal);
+   515→    const R = parseNumber(rate);
+   516→    const T = parseNumber(years);
+   517→    const interest = (P * R * T) / 100;
+   518→    const total = P + interest;
+   519→    return { P, interest, total };
+   520→  }, [principal, rate, years]);
+   521→
+   522→  return (
+   523→    <div className="space-y-6">
+   524→      <div className="grid sm:grid-cols-2 gap-4">
+   525→        <CurrencySelect value={currency} onChange={setCurrency} />
+   526→        <div className="hidden sm:block" />
+   527→        <Field label="Principal">
+   528→          <Input value={principal} onChange={(e) => setPrincipal(e.target.value)} inputMode="decimal" />
+   529→        </Field>
+   530→        <Field label="Annual interest rate (%)">
+   531→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+   532→        </Field>
+   533→        <Field label="Time (years)">
+   534→          <Input value={years} onChange={(e) => setYears(e.target.value)} inputMode="decimal" />
+   535→        </Field>
+   536→      </div>
+   537→
+   538→      <div className="grid sm:grid-cols-2 gap-4">
+   539→        <CopyableStat label="Interest" displayValue={money(calc.interest, currency)} accent="success" />
+   540→        <ResultStat label="Total Amount" value={money(calc.total, currency)} accent="primary" />
+   541→      </div>
+   542→
+   543→      <FormulaBox>SI = P · R · T ÷ 100, and Total = P + SI.</FormulaBox>
+   544→    </div>
+   545→  );
+   546→}
+   547→
+   548→/* ------------------------------------------------------------------ */
+   549→/* 6. Savings                                                           */
+   550→/* ------------------------------------------------------------------ */
+   551→
+   552→function SavingsCalc() {
+   553→  const [currency, setCurrency] = React.useState<string>("USD");
+   554→  const [initial, setInitial] = React.useState("5000");
+   555→  const [monthly, setMonthly] = React.useState("400");
+   556→  const [rate, setRate] = React.useState("5");
+   557→  const [years, setYears] = React.useState("20");
+   558→
+   559→  const calc = React.useMemo(() => {
+   560→    const P = parseNumber(initial);
+   561→    const pmtVal = parseNumber(monthly);
+   562→    const r = parseNumber(rate) / 100;
+   563→    const t = parseNumber(years);
+   564→    // Monthly compounding
+   565→    const fvPrincipal = fvLumpSum(P, r, 12, t);
+   566→    const fvContrib = fvAnnuity(pmtVal, r, 12, t);
+   567→    const balance = fvPrincipal + fvContrib;
+   568→    const totalContributions = P + pmtVal * 12 * t;
+   569→    const interest = balance - totalContributions;
+   570→    return { balance, totalContributions, interest };
+   571→  }, [initial, monthly, rate, years]);
+   572→
+   573→  return (
+   574→    <div className="space-y-6">
+   575→      <div className="grid sm:grid-cols-2 gap-4">
+   576→        <CurrencySelect value={currency} onChange={setCurrency} />
+   577→        <div className="hidden sm:block" />
+   578→        <Field label="Initial deposit">
+   579→          <Input value={initial} onChange={(e) => setInitial(e.target.value)} inputMode="decimal" />
+   580→        </Field>
+   581→        <Field label="Monthly contribution">
+   582→          <Input value={monthly} onChange={(e) => setMonthly(e.target.value)} inputMode="decimal" />
+   583→        </Field>
+   584→        <Field label="Annual rate (%)">
+   585→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+   586→        </Field>
+   587→        <Field label="Years">
+   588→          <Input value={years} onChange={(e) => setYears(e.target.value)} inputMode="decimal" />
+   589→        </Field>
+   590→      </div>
+   591→
+   592→      <div className="grid sm:grid-cols-3 gap-4">
+   593→        <CopyableStat label="Final Balance" displayValue={money(calc.balance, currency)} accent="primary" />
+   594→        <ResultStat label="Total Contributions" value={money(calc.totalContributions, currency)} accent="default" />
+   595→        <ResultStat label="Interest Earned" value={money(calc.interest, currency)} accent="success" />
+   596→      </div>
+   597→
+   598→      <FormulaBox>
+   599→        Monthly compounding: FV = P(1 + r/12)<sup>12t</sup> + PMT · [((1 + r/12)<sup>12t</sup> − 1) / (r/12)].
+   600→      </FormulaBox>
+   601→    </div>
+   602→  );
+   603→}
+   604→
+   605→/* ------------------------------------------------------------------ */
+   606→/* 7. Investment                                                        */
+   607→/* ------------------------------------------------------------------ */
+   608→
+   609→function InvestmentCalc() {
+   610→  const [currency, setCurrency] = React.useState<string>("USD");
+   611→  const [initial, setInitial] = React.useState("10000");
+   612→  const [monthly, setMonthly] = React.useState("500");
+   613→  const [rate, setRate] = React.useState("8");
+   614→  const [years, setYears] = React.useState("25");
+   615→
+   616→  const calc = React.useMemo(() => {
+   617→    const P = parseNumber(initial);
+   618→    const pmtVal = parseNumber(monthly);
+   619→    const r = parseNumber(rate) / 100;
+   620→    const t = parseNumber(years);
+   621→    const fvPrincipal = fvLumpSum(P, r, 12, t);
+   622→    const fvContrib = fvAnnuity(pmtVal, r, 12, t);
+   623→    const futureValue = fvPrincipal + fvContrib;
+   624→    const invested = P + pmtVal * 12 * t;
+   625→    const growth = futureValue - invested;
+   626→    return { futureValue, invested, growth };
+   627→  }, [initial, monthly, rate, years]);
+   628→
+   629→  return (
+   630→    <div className="space-y-6">
+   631→      <div className="grid sm:grid-cols-2 gap-4">
+   632→        <CurrencySelect value={currency} onChange={setCurrency} />
+   633→        <div className="hidden sm:block" />
+   634→        <Field label="Initial investment">
+   635→          <Input value={initial} onChange={(e) => setInitial(e.target.value)} inputMode="decimal" />
+   636→        </Field>
+   637→        <Field label="Monthly contribution">
+   638→          <Input value={monthly} onChange={(e) => setMonthly(e.target.value)} inputMode="decimal" />
+   639→        </Field>
+   640→        <Field label="Expected annual return (%)">
+   641→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+   642→        </Field>
+   643→        <Field label="Time horizon (years)">
+   644→          <Input value={years} onChange={(e) => setYears(e.target.value)} inputMode="decimal" />
+   645→        </Field>
+   646→      </div>
+   647→
+   648→      <div className="grid sm:grid-cols-3 gap-4">
+   649→        <CopyableStat label="Future Value" displayValue={money(calc.futureValue, currency)} accent="primary" />
+   650→        <ResultStat label="Total Invested" value={money(calc.invested, currency)} accent="default" />
+   651→        <ResultStat label="Growth" value={money(calc.growth, currency)} accent="success" />
+   652→      </div>
+   653→
+   654→      <FormulaBox>
+   655→        FV = P(1 + r/12)<sup>12t</sup> + PMT · [((1 + r/12)<sup>12t</sup> − 1) / (r/12)]. Growth = FV − (P + PMT · 12 ·
+   656→        t).
+   657→      </FormulaBox>
+   658→    </div>
+   659→  );
+   660→}
+   661→
+   662→/* ------------------------------------------------------------------ */
+   663→/* 8. ROI                                                               */
+   664→/* ------------------------------------------------------------------ */
+   665→
+   666→function RoiCalc() {
+   667→  const [currency, setCurrency] = React.useState<string>("USD");
+   668→  const [initial, setInitial] = React.useState("10000");
+   669→  const [final, setFinal] = React.useState("15000");
+   670→
+   671→  const calc = React.useMemo(() => {
+   672→    const inv = parseNumber(initial);
+   673→    const end = parseNumber(final);
+   674→    const gain = end - inv;
+   675→    const roi = inv !== 0 ? (gain / inv) * 100 : 0;
+   676→    return { inv, end, gain, roi };
+   677→  }, [initial, final]);
+   678→
+   679→  return (
+   680→    <div className="space-y-6">
+   681→      <div className="grid sm:grid-cols-2 gap-4">
+   682→        <CurrencySelect value={currency} onChange={setCurrency} />
+   683→        <div className="hidden sm:block" />
+   684→        <Field label="Initial investment">
+   685→          <Input value={initial} onChange={(e) => setInitial(e.target.value)} inputMode="decimal" />
+   686→        </Field>
+   687→        <Field label="Final value">
+   688→          <Input value={final} onChange={(e) => setFinal(e.target.value)} inputMode="decimal" />
+   689→        </Field>
+   690→      </div>
+   691→
+   692→      <div className="grid sm:grid-cols-2 gap-4">
+   693→        <CopyableStat
+   694→          label="ROI"
+   695→          displayValue={`${calc.roi >= 0 ? "" : ""}${num(calc.roi, 2)}%`}
+   696→          accent={calc.roi >= 0 ? "success" : "warning"}
+   697→          sublabel={calc.gain >= 0 ? "Profit" : "Loss"}
+   698→        />
+   699→        <ResultStat
+   700→          label="Absolute Gain"
+   701→          value={money(calc.gain, currency)}
+   702→          accent={calc.gain >= 0 ? "primary" : "warning"}
+   703→        />
+   704→      </div>
+   705→
+   706→      <FormulaBox>ROI = (Final − Initial) / Initial × 100.</FormulaBox>
+   707→    </div>
+   708→  );
+   709→}
+   710→
+   711→/* ------------------------------------------------------------------ */
+   712→/* 9. CAGR                                                              */
+   713→/* ------------------------------------------------------------------ */
+   714→
+   715→function CagrCalc() {
+   716→  const [initial, setInitial] = React.useState("10000");
+   717→  const [final, setFinal] = React.useState("25000");
+   718→  const [years, setYears] = React.useState("8");
+   719→
+   720→  const calc = React.useMemo(() => {
+   721→    const init = parseNumber(initial);
+   722→    const end = parseNumber(final);
+   723→    const t = parseNumber(years);
+   724→    const cagr = init > 0 && t > 0 ? Math.pow(end / init, 1 / t) - 1 : 0;
+   725→    const totalReturn = init > 0 ? ((end - init) / init) * 100 : 0;
+   726→    return { init, end, t, cagr: cagr * 100, totalReturn };
+   727→  }, [initial, final, years]);
+   728→
+   729→  return (
+   730→    <div className="space-y-6">
+   731→      <div className="grid sm:grid-cols-3 gap-4">
+   732→        <Field label="Initial value">
+   733→          <Input value={initial} onChange={(e) => setInitial(e.target.value)} inputMode="decimal" />
+   734→        </Field>
+   735→        <Field label="Final value">
+   736→          <Input value={final} onChange={(e) => setFinal(e.target.value)} inputMode="decimal" />
+   737→        </Field>
+   738→        <Field label="Years">
+   739→          <Input value={years} onChange={(e) => setYears(e.target.value)} inputMode="decimal" />
+   740→        </Field>
+   741→      </div>
+   742→
+   743→      <div className="grid sm:grid-cols-2 gap-4">
+   744→        <CopyableStat label="CAGR" displayValue={`${num(calc.cagr, 2)}%`} accent="primary" />
+   745→        <ResultStat label="Total Return" value={`${num(calc.totalReturn, 2)}%`} accent="default" />
+   746→      </div>
+   747→
+   748→      <FormulaBox>
+   749→        CAGR = (Final / Initial)<sup>1/years</sup> − 1. Represents the constant annual growth rate that takes the
+   750→        initial value to the final value over the period.
+   751→      </FormulaBox>
+   752→    </div>
+   753→  );
+   754→}
+   755→
+   756→/* ------------------------------------------------------------------ */
+   757→/* 10. Profit Margin                                                   */
+   758→/* ------------------------------------------------------------------ */
+   759→
+   760→function ProfitMarginCalc() {
+   761→  const [currency, setCurrency] = React.useState<string>("USD");
+   762→  const [revenue, setRevenue] = React.useState("100000");
+   763→  const [cogs, setCogs] = React.useState("60000");
+   764→  const [opex, setOpex] = React.useState("20000");
+   765→
+   766→  const calc = React.useMemo(() => {
+   767→    const rev = parseNumber(revenue);
+   768→    const cost = parseNumber(cogs);
+   769→    const operating = parseNumber(opex);
+   770→    const grossProfit = rev - cost;
+   771→    const grossMargin = rev > 0 ? (grossProfit / rev) * 100 : 0;
+   772→    const operatingProfit = grossProfit - operating;
+   773→    const operatingMargin = rev > 0 ? (operatingProfit / rev) * 100 : 0;
+   774→    const netProfit = operatingProfit;
+   775→    const netMargin = rev > 0 ? (netProfit / rev) * 100 : 0;
+   776→    return { rev, cost, operating, grossProfit, grossMargin, operatingProfit, operatingMargin, netProfit, netMargin };
+   777→  }, [revenue, cogs, opex]);
+   778→
+   779→  return (
+   780→    <div className="space-y-6">
+   781→      <div className="grid sm:grid-cols-2 gap-4">
+   782→        <CurrencySelect value={currency} onChange={setCurrency} />
+   783→        <div className="hidden sm:block" />
+   784→        <Field label="Revenue">
+   785→          <Input value={revenue} onChange={(e) => setRevenue(e.target.value)} inputMode="decimal" />
+   786→        </Field>
+   787→        <Field label="Cost / COGS">
+   788→          <Input value={cogs} onChange={(e) => setCogs(e.target.value)} inputMode="decimal" />
+   789→        </Field>
+   790→        <Field label="Operating expenses (optional)">
+   791→          <Input value={opex} onChange={(e) => setOpex(e.target.value)} inputMode="decimal" />
+   792→        </Field>
+   793→      </div>
+   794→
+   795→      <div className="grid sm:grid-cols-2 gap-4">
+   796→        <CopyableStat label="Gross Profit" displayValue={money(calc.grossProfit, currency)} accent="primary" sublabel={`${num(calc.grossMargin, 2)}% margin`} />
+   797→        <ResultStat label="Gross Margin" value={`${num(calc.grossMargin, 2)}%`} accent="default" />
+   798→      </div>
+   799→
+   800→      {parseNumber(opex) > 0 && (
+   801→        <div className="grid sm:grid-cols-2 gap-4">
+   802→          <ResultStat
+   803→            label="Operating Profit"
+   804→            value={money(calc.operatingProfit, currency)}
+   805→            accent={calc.operatingProfit >= 0 ? "success" : "warning"}
+   806→            sublabel={`${num(calc.operatingMargin, 2)}% margin`}
+   807→          />
+   808→          <ResultStat label="Operating Margin" value={`${num(calc.operatingMargin, 2)}%`} accent="default" />
+   809→        </div>
+   810→      )}
+   811→
+   812→      <FormulaBox>
+   813→        Gross profit = Revenue − COGS. Gross margin (%) = Gross profit ÷ Revenue × 100. Operating profit = Gross profit
+   814→        − Operating expenses.
+   815→      </FormulaBox>
+   816→    </div>
+   817→  );
+   818→}
+   819→
+   820→/* ------------------------------------------------------------------ */
+   821→/* 11. Markup                                                          */
+   822→/* ------------------------------------------------------------------ */
+   823→
+   824→function MarkupCalc() {
+   825→  const [currency, setCurrency] = React.useState<string>("USD");
+   826→  const [cost, setCost] = React.useState("80");
+   827→  const [markup, setMarkup] = React.useState("25");
+   828→
+   829→  const calc = React.useMemo(() => {
+   830→    const c = parseNumber(cost);
+   831→    const m = parseNumber(markup);
+   832→    const selling = c * (1 + m / 100);
+   833→    const profit = selling - c;
+   834→    const margin = selling > 0 ? (profit / selling) * 100 : 0;
+   835→    return { c, m, selling, profit, margin };
+   836→  }, [cost, markup]);
+   837→
+   838→  return (
+   839→    <div className="space-y-6">
+   840→      <div className="grid sm:grid-cols-2 gap-4">
+   841→        <CurrencySelect value={currency} onChange={setCurrency} />
+   842→        <div className="hidden sm:block" />
+   843→        <Field label="Cost">
+   844→          <Input value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />
+   845→        </Field>
+   846→        <Field label="Markup (%)">
+   847→          <Input value={markup} onChange={(e) => setMarkup(e.target.value)} inputMode="decimal" />
+   848→        </Field>
+   849→      </div>
+   850→
+   851→      <div className="grid sm:grid-cols-3 gap-4">
+   852→        <CopyableStat label="Selling Price" displayValue={money(calc.selling, currency)} accent="primary" />
+   853→        <ResultStat label="Profit" value={money(calc.profit, currency)} accent="success" />
+   854→        <ResultStat label="Margin" value={`${num(calc.margin, 2)}%`} accent="default" />
+   855→      </div>
+   856→
+   857→      <FormulaBox>
+   858→        Selling price = Cost × (1 + Markup/100). Profit = Selling price − Cost. Margin (%) = Profit ÷ Selling price ×
+   859→        100.
+   860→      </FormulaBox>
+   861→    </div>
+   862→  );
+   863→}
+   864→
+   865→/* ------------------------------------------------------------------ */
+   866→/* 12. Discount                                                        */
+   867→/* ------------------------------------------------------------------ */
+   868→
+   869→function DiscountCalc() {
+   870→  const [currency, setCurrency] = React.useState<string>("USD");
+   871→  const [mode, setMode] = React.useState<"forward" | "reverse">("forward");
+   872→  const [original, setOriginal] = React.useState("120");
+   873→  const [discount, setDiscount] = React.useState("20");
+   874→  const [finalPrice, setFinalPrice] = React.useState("96");
+   875→
+   876→  const forward = React.useMemo(() => {
+   877→    const orig = parseNumber(original);
+   878→    const pct = parseNumber(discount);
+   879→    const discountAmount = (orig * pct) / 100;
+   880→    const final = orig - discountAmount;
+   881→    return { orig, pct, discountAmount, final };
+   882→  }, [original, discount]);
+   883→
+   884→  const reverse = React.useMemo(() => {
+   885→    const final = parseNumber(finalPrice);
+   886→    const pct = parseNumber(discount);
+   887→    const orig = pct < 100 ? final / (1 - pct / 100) : final;
+   888→    const discountAmount = orig - final;
+   889→    return { orig, pct, discountAmount, final };
+   890→  }, [finalPrice, discount]);
+   891→
+   892→  return (
+   893→    <div className="space-y-6">
+   894→      <div className="grid sm:grid-cols-2 gap-4">
+   895→        <CurrencySelect value={currency} onChange={setCurrency} />
+   896→        <Field label="Mode">
+   897→          <Select value={mode} onValueChange={(v) => setMode(v as "forward" | "reverse")}>
+   898→            <SelectTrigger className="w-full">
+   899→              <SelectValue />
+   900→            </SelectTrigger>
+   901→            <SelectContent>
+   902→              <SelectItem value="forward">Original → Final (apply discount)</SelectItem>
+   903→              <SelectItem value="reverse">Final → Original (reverse discount)</SelectItem>
+   904→            </SelectContent>
+   905→          </Select>
+   906→        </Field>
+   907→      </div>
+   908→
+   909→      {mode === "forward" ? (
+   910→        <div className="grid sm:grid-cols-2 gap-4">
+   911→          <Field label="Original price">
+   912→            <Input value={original} onChange={(e) => setOriginal(e.target.value)} inputMode="decimal" />
+   913→          </Field>
+   914→          <Field label="Discount (%)">
+   915→            <Input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" />
+   916→          </Field>
+   917→        </div>
+   918→      ) : (
+   919→        <div className="grid sm:grid-cols-2 gap-4">
+   920→          <Field label="Final price (after discount)">
+   921→            <Input value={finalPrice} onChange={(e) => setFinalPrice(e.target.value)} inputMode="decimal" />
+   922→          </Field>
+   923→          <Field label="Discount (%)">
+   924→            <Input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" />
+   925→          </Field>
+   926→        </div>
+   927→      )}
+   928→
+   929→      {mode === "forward" ? (
+   930→        <div className="grid sm:grid-cols-3 gap-4">
+   931→          <CopyableStat label="Final Price" displayValue={money(forward.final, currency)} accent="primary" />
+   932→          <ResultStat label="You Save" value={money(forward.discountAmount, currency)} accent="success" />
+   933→          <ResultStat label="Discount Amount" value={money(forward.discountAmount, currency)} accent="default" />
+   934→        </div>
+   935→      ) : (
+   936→        <div className="grid sm:grid-cols-3 gap-4">
+   937→          <CopyableStat label="Original Price" displayValue={money(reverse.orig, currency)} accent="primary" />
+   938→          <ResultStat label="Discount Amount" value={money(reverse.discountAmount, currency)} accent="warning" />
+   939→          <ResultStat label="Final Price" value={money(reverse.final, currency)} accent="default" />
+   940→        </div>
+   941→      )}
+   942→
+   943→      <FormulaBox>
+   944→        Forward: Final = Original × (1 − Discount/100). Reverse: Original = Final ÷ (1 − Discount/100). Savings =
+   945→        Original − Final.
+   946→      </FormulaBox>
+   947→    </div>
+   948→  );
+   949→}
+   950→
+   951→/* ------------------------------------------------------------------ */
+   952→/* 13. Future Value                                                    */
+   953→/* ------------------------------------------------------------------ */
+   954→
+   955→function FutureValueCalc() {
+   956→  const [currency, setCurrency] = React.useState<string>("USD");
+   957→  const [pv, setPv] = React.useState("10000");
+   958→  const [rate, setRate] = React.useState("7");
+   959→  const [years, setYears] = React.useState("15");
+   960→  const [freq, setFreq] = React.useState("monthly");
+   961→
+   962→  const calc = React.useMemo(() => {
+   963→    const P = parseNumber(pv);
+   964→    const r = parseNumber(rate) / 100;
+   965→    const t = parseNumber(years);
+   966→    const n = COMPOUND_FREQ[freq] ?? 12;
+   967→    const fv = fvLumpSum(P, r, n, t);
+   968→    const interest = fv - P;
+   969→    return { fv, interest };
+   970→  }, [pv, rate, years, freq]);
+   971→
+   972→  return (
+   973→    <div className="space-y-6">
+   974→      <div className="grid sm:grid-cols-2 gap-4">
+   975→        <CurrencySelect value={currency} onChange={setCurrency} />
+   976→        <div className="hidden sm:block" />
+   977→        <Field label="Present value">
+   978→          <Input value={pv} onChange={(e) => setPv(e.target.value)} inputMode="decimal" />
+   979→        </Field>
+   980→        <Field label="Annual rate (%)">
+   981→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+   982→        </Field>
+   983→        <Field label="Years">
+   984→          <Input value={years} onChange={(e) => setYears(e.target.value)} inputMode="decimal" />
+   985→        </Field>
+   986→        <Field label="Compounding frequency">
+   987→          <Select value={freq} onValueChange={setFreq}>
+   988→            <SelectTrigger className="w-full">
+   989→              <SelectValue />
+   990→            </SelectTrigger>
+   991→            <SelectContent>
+   992→              <SelectItem value="annually">Annually</SelectItem>
+   993→              <SelectItem value="semiannually">Semi-annually</SelectItem>
+   994→              <SelectItem value="quarterly">Quarterly</SelectItem>
+   995→              <SelectItem value="monthly">Monthly</SelectItem>
+   996→              <SelectItem value="daily">Daily</SelectItem>
+   997→            </SelectContent>
+   998→          </Select>
+   999→        </Field>
+  1000→      </div>
+  1001→
+  1002→      <div className="grid sm:grid-cols-2 gap-4">
+  1003→        <CopyableStat label="Future Value" displayValue={money(calc.fv, currency)} accent="primary" />
+  1004→        <ResultStat label="Interest Earned" value={money(calc.interest, currency)} accent="success" />
+  1005→      </div>
+  1006→
+  1007→      <FormulaBox>FV = PV × (1 + r/n)<sup>nt</sup>, where n is the compounding frequency per year.</FormulaBox>
+  1008→    </div>
+  1009→  );
+  1010→}
+  1011→
+  1012→/* ------------------------------------------------------------------ */
+  1013→/* 14. Present Value                                                   */
+  1014→/* ------------------------------------------------------------------ */
+  1015→
+  1016→function PresentValueCalc() {
+  1017→  const [currency, setCurrency] = React.useState<string>("USD");
+  1018→  const [fv, setFv] = React.useState("25000");
+  1019→  const [rate, setRate] = React.useState("5");
+  1020→  const [years, setYears] = React.useState("10");
+  1021→
+  1022→  const calc = React.useMemo(() => {
+  1023→    const F = parseNumber(fv);
+  1024→    const r = parseNumber(rate) / 100;
+  1025→    const t = parseNumber(years);
+  1026→    const pv = r > 0 ? F / Math.pow(1 + r, t) : F;
+  1027→    const interest = F - pv;
+  1028→    return { pv, interest, F };
+  1029→  }, [fv, rate, years]);
+  1030→
+  1031→  return (
+  1032→    <div className="space-y-6">
+  1033→      <div className="grid sm:grid-cols-2 gap-4">
+  1034→        <CurrencySelect value={currency} onChange={setCurrency} />
+  1035→        <div className="hidden sm:block" />
+  1036→        <Field label="Future value">
+  1037→          <Input value={fv} onChange={(e) => setFv(e.target.value)} inputMode="decimal" />
+  1038→        </Field>
+  1039→        <Field label="Annual discount rate (%)">
+  1040→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+  1041→        </Field>
+  1042→        <Field label="Years">
+  1043→          <Input value={years} onChange={(e) => setYears(e.target.value)} inputMode="decimal" />
+  1044→        </Field>
+  1045→      </div>
+  1046→
+  1047→      <div className="grid sm:grid-cols-2 gap-4">
+  1048→        <CopyableStat label="Present Value" displayValue={money(calc.pv, currency)} accent="primary" />
+  1049→        <ResultStat label="Discount (Interest)" value={money(calc.interest, currency)} accent="warning" />
+  1050→      </div>
+  1051→
+  1052→      <FormulaBox>PV = FV / (1 + r)<sup>n</sup>, where r is the annual discount rate and n is the number of years.</FormulaBox>
+  1053→    </div>
+  1054→  );
+  1055→}
+  1056→
+  1057→/* ------------------------------------------------------------------ */
+  1058→/* 15. Break-Even                                                      */
+  1059→/* ------------------------------------------------------------------ */
+  1060→
+  1061→function BreakEvenCalc() {
+  1062→  const [currency, setCurrency] = React.useState<string>("USD");
+  1063→  const [fixed, setFixed] = React.useState("50000");
+  1064→  const [pricePerUnit, setPricePerUnit] = React.useState("25");
+  1065→  const [variablePerUnit, setVariablePerUnit] = React.useState("10");
+  1066→
+  1067→  const calc = React.useMemo(() => {
+  1068→    const f = parseNumber(fixed);
+  1069→    const p = parseNumber(pricePerUnit);
+  1070→    const v = parseNumber(variablePerUnit);
+  1071→    const contribution = p - v;
+  1072→    const units = contribution > 0 ? f / contribution : 0;
+  1073→    const revenue = units * p;
+  1074→    const contributionMargin = p > 0 ? (contribution / p) * 100 : 0;
+  1075→    return { f, p, v, contribution, units, revenue, contributionMargin };
+  1076→  }, [fixed, pricePerUnit, variablePerUnit]);
+  1077→
+  1078→  return (
+  1079→    <div className="space-y-6">
+  1080→      <div className="grid sm:grid-cols-2 gap-4">
+  1081→        <CurrencySelect value={currency} onChange={setCurrency} />
+  1082→        <div className="hidden sm:block" />
+  1083→        <Field label="Fixed costs">
+  1084→          <Input value={fixed} onChange={(e) => setFixed(e.target.value)} inputMode="decimal" />
+  1085→        </Field>
+  1086→        <Field label="Price per unit">
+  1087→          <Input value={pricePerUnit} onChange={(e) => setPricePerUnit(e.target.value)} inputMode="decimal" />
+  1088→        </Field>
+  1089→        <Field label="Variable cost per unit">
+  1090→          <Input value={variablePerUnit} onChange={(e) => setVariablePerUnit(e.target.value)} inputMode="decimal" />
+  1091→        </Field>
+  1092→        <Field label="Contribution margin per unit">
+  1093→          <Input value={money(calc.contribution, currency)} readOnly className="bg-muted/40 font-mono" />
+  1094→        </Field>
+  1095→      </div>
+  1096→
+  1097→      <div className="grid sm:grid-cols-3 gap-4">
+  1098→        <CopyableStat label="Break-Even Units" displayValue={num(calc.units, 0)} accent="primary" sublabel={`Revenue: ${money(calc.revenue, currency)}`} />
+  1099→        <ResultStat label="Break-Even Revenue" value={money(calc.revenue, currency)} accent="default" />
+  1100→        <ResultStat label="Contribution Margin" value={`${num(calc.contributionMargin, 1)}%`} accent="default" />
+  1101→      </div>
+  1102→
+  1103→      {calc.contribution <= 0 && (
+  1104→        <div className="rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm text-foreground">
+  1105→          Price per unit must be greater than variable cost per unit to reach break-even. Currently your contribution
+  1106→          margin per unit is {money(calc.contribution, currency)}.
+  1107→        </div>
+  1108→      )}
+  1109→
+  1110→      <FormulaBox>
+  1111→        Break-even units = Fixed costs ÷ (Price per unit − Variable cost per unit). Break-even revenue = Break-even
+  1112→        units × Price per unit.
+  1113→      </FormulaBox>
+  1114→    </div>
+  1115→  );
+  1116→}
+  1117→
+  1118→/* ------------------------------------------------------------------ */
+  1119→/* 16. Salary                                                          */
+  1120→/* ------------------------------------------------------------------ */
+  1121→
+  1122→function SalaryCalc() {
+  1123→  const [currency, setCurrency] = React.useState<string>("USD");
+  1124→  const [hourly, setHourly] = React.useState("25");
+  1125→  const [hoursPerWeek, setHoursPerWeek] = React.useState("40");
+  1126→  const [annual, setAnnual] = React.useState("60000");
+  1127→  const [annualHoursPerWeek, setAnnualHoursPerWeek] = React.useState("40");
+  1128→
+  1129→  const hourlyCalc = React.useMemo(() => {
+  1130→    const h = parseNumber(hourly);
+  1131→    const hpw = parseNumber(hoursPerWeek);
+  1132→    const weekly = h * hpw;
+  1133→    const daily = h * 8;
+  1134→    const annualSalary = weekly * 52;
+  1135→    const monthly = annualSalary / 12;
+  1136→    return { h, daily, weekly, monthly, annual: annualSalary };
+  1137→  }, [hourly, hoursPerWeek]);
+  1138→
+  1139→  const annualCalc = React.useMemo(() => {
+  1140→    const a = parseNumber(annual);
+  1141→    const hpw = parseNumber(annualHoursPerWeek);
+  1142→    const weekly = a / 52;
+  1143→    const monthly = a / 12;
+  1144→    const hourlyRate = hpw > 0 ? weekly / hpw : 0;
+  1145→    const daily = hourlyRate * 8;
+  1146→    return { a, weekly, monthly, hourly: hourlyRate, daily };
+  1147→  }, [annual, annualHoursPerWeek]);
+  1148→
+  1149→  return (
+  1150→    <div className="space-y-6">
+  1151→      <Tabs defaultValue="hourly">
+  1152→        <TabsList>
+  1153→          <TabsTrigger value="hourly">Hourly → Salary</TabsTrigger>
+  1154→          <TabsTrigger value="annual">Annual → Hourly</TabsTrigger>
+  1155→        </TabsList>
+  1156→
+  1157→        <TabsContent value="hourly" className="space-y-6 mt-4">
+  1158→          <div className="grid sm:grid-cols-2 gap-4">
+  1159→            <CurrencySelect value={currency} onChange={setCurrency} />
+  1160→            <div className="hidden sm:block" />
+  1161→            <Field label="Hourly rate">
+  1162→              <Input value={hourly} onChange={(e) => setHourly(e.target.value)} inputMode="decimal" />
+  1163→            </Field>
+  1164→            <Field label="Hours per week">
+  1165→              <Input value={hoursPerWeek} onChange={(e) => setHoursPerWeek(e.target.value)} inputMode="decimal" />
+  1166→            </Field>
+  1167→          </div>
+  1168→          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  1169→            <CopyableStat label="Hourly" displayValue={money(hourlyCalc.h, currency)} accent="default" />
+  1170→            <ResultStat label="Daily (8h)" value={money(hourlyCalc.daily, currency)} accent="default" />
+  1171→            <ResultStat label="Weekly" value={money(hourlyCalc.weekly, currency)} accent="default" />
+  1172→            <ResultStat label="Monthly" value={money(hourlyCalc.monthly, currency)} accent="default" />
+  1173→            <CopyableStat label="Annual" displayValue={money(hourlyCalc.annual, currency)} accent="primary" sublabel="52 weeks" />
+  1174→          </div>
+  1175→        </TabsContent>
+  1176→
+  1177→        <TabsContent value="annual" className="space-y-6 mt-4">
+  1178→          <div className="grid sm:grid-cols-2 gap-4">
+  1179→            <CurrencySelect value={currency} onChange={setCurrency} />
+  1180→            <div className="hidden sm:block" />
+  1181→            <Field label="Annual salary">
+  1182→              <Input value={annual} onChange={(e) => setAnnual(e.target.value)} inputMode="decimal" />
+  1183→            </Field>
+  1184→            <Field label="Hours per week">
+  1185→              <Input value={annualHoursPerWeek} onChange={(e) => setAnnualHoursPerWeek(e.target.value)} inputMode="decimal" />
+  1186→            </Field>
+  1187→          </div>
+  1188→          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  1189→            <CopyableStat label="Hourly Rate" displayValue={money(annualCalc.hourly, currency)} accent="primary" />
+  1190→            <ResultStat label="Daily (8h)" value={money(annualCalc.daily, currency)} accent="default" />
+  1191→            <ResultStat label="Weekly" value={money(annualCalc.weekly, currency)} accent="default" />
+  1192→            <ResultStat label="Monthly" value={money(annualCalc.monthly, currency)} accent="default" />
+  1193→            <ResultStat label="Annual" value={money(annualCalc.a, currency)} accent="default" />
+  1194→          </div>
+  1195→        </TabsContent>
+  1196→      </Tabs>
+  1197→
+  1198→      <FormulaBox>
+  1199→        Annual = Hourly × Hours/week × 52. Monthly = Annual ÷ 12. Daily = Hourly × 8. Reverse: Hourly = Annual ÷ 52 ÷
+  1200→        Hours/week.
+  1201→      </FormulaBox>
+  1202→    </div>
+  1203→  );
+  1204→}
+  1205→
+  1206→/* ------------------------------------------------------------------ */
+  1207→/* 17. Retirement                                                      */
+  1208→/* ------------------------------------------------------------------ */
+  1209→
+  1210→function RetirementCalc() {
+  1211→  const [currency, setCurrency] = React.useState<string>("USD");
+  1212→  const [currentAge, setCurrentAge] = React.useState("30");
+  1213→  const [retireAge, setRetireAge] = React.useState("65");
+  1214→  const [currentSavings, setCurrentSavings] = React.useState("25000");
+  1215→  const [monthly, setMonthly] = React.useState("500");
+  1216→  const [rate, setRate] = React.useState("7");
+  1217→
+  1218→  const calc = React.useMemo(() => {
+  1219→    const ageNow = parseNumber(currentAge);
+  1220→    const ageRetire = parseNumber(retireAge);
+  1221→    const years = Math.max(0, ageRetire - ageNow);
+  1222→    const months = years * 12;
+  1223→    const P = parseNumber(currentSavings);
+  1224→    const pmtVal = parseNumber(monthly);
+  1225→    const r = parseNumber(rate) / 100;
+  1226→
+  1227→    const fvPrincipal = fvLumpSum(P, r, 12, years);
+  1228→    const fvContrib = fvAnnuity(pmtVal, r, 12, years);
+  1229→    const corpus = fvPrincipal + fvContrib;
+  1230→    const totalContributions = P + pmtVal * months;
+  1231→    const growth = corpus - totalContributions;
+  1232→    return { years, months, corpus, totalContributions, growth };
+  1233→  }, [currentAge, retireAge, currentSavings, monthly, rate]);
+  1234→
+  1235→  return (
+  1236→    <div className="space-y-6">
+  1237→      <div className="grid sm:grid-cols-2 gap-4">
+  1238→        <CurrencySelect value={currency} onChange={setCurrency} />
+  1239→        <div className="hidden sm:block" />
+  1240→        <Field label="Current age">
+  1241→          <Input value={currentAge} onChange={(e) => setCurrentAge(e.target.value)} inputMode="decimal" />
+  1242→        </Field>
+  1243→        <Field label="Retirement age">
+  1244→          <Input value={retireAge} onChange={(e) => setRetireAge(e.target.value)} inputMode="decimal" />
+  1245→        </Field>
+  1246→        <Field label="Current savings">
+  1247→          <Input value={currentSavings} onChange={(e) => setCurrentSavings(e.target.value)} inputMode="decimal" />
+  1248→        </Field>
+  1249→        <Field label="Monthly contribution">
+  1250→          <Input value={monthly} onChange={(e) => setMonthly(e.target.value)} inputMode="decimal" />
+  1251→        </Field>
+  1252→        <Field label="Expected annual return (%)">
+  1253→          <Input value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+  1254→        </Field>
+  1255→        <div className="text-xs text-muted-foreground self-end pb-2">
+  1256→          {calc.years} years · {num(calc.months, 0)} monthly contributions
+  1257→        </div>
+  1258→      </div>
+  1259→
+  1260→      <div className="grid sm:grid-cols-3 gap-4">
+  1261→        <CopyableStat
+  1262→          label="Projected Corpus"
+  1263→          displayValue={money(calc.corpus, currency)}
+  1264→          accent="primary"
+  1265→          sublabel={`at retirement`}
+  1266→        />
+  1267→        <ResultStat label="Total Contributions" value={money(calc.totalContributions, currency)} accent="default" />
+  1268→        <ResultStat label="Growth" value={money(calc.growth, currency)} accent="success" />
+  1269→      </div>
+  1270→
+  1271→      <FormulaBox>
+  1272→        FV = P(1 + r/12)<sup>12t</sup> + PMT · [((1 + r/12)<sup>12t</sup> − 1) / (r/12)], where t = retirement age −
+  1273→        current age.
+  1274→      </FormulaBox>
+  1275→    </div>
+  1276→  );
+  1277→}
+  1278→
+  1279→/* ------------------------------------------------------------------ */
+  1280→/* 18. Net Worth                                                       */
+  1281→/* ------------------------------------------------------------------ */
+  1282→
+  1283→function NetWorthCalc() {
+  1284→  const [currency, setCurrency] = React.useState<string>("USD");
+  1285→  const [cash, setCash] = React.useState("15000");
+  1286→  const [investments, setInvestments] = React.useState("85000");
+  1287→  const [realEstate, setRealEstate] = React.useState("320000");
+  1288→  const [vehicles, setVehicles] = React.useState("22000");
+  1289→  const [otherAssets, setOtherAssets] = React.useState("8000");
+  1290→
+  1291→  const [mortgage, setMortgage] = React.useState("220000");
+  1292→  const [loans, setLoans] = React.useState("18000");
+  1293→  const [creditCards, setCreditCards] = React.useState("3500");
+  1294→  const [otherLiab, setOtherLiab] = React.useState("2000");
+  1295→
+  1296→  const calc = React.useMemo(() => {
+  1297→    const assets =
+  1298→      parseNumber(cash) +
+  1299→      parseNumber(investments) +
+  1300→      parseNumber(realEstate) +
+  1301→      parseNumber(vehicles) +
+  1302→      parseNumber(otherAssets);
+  1303→    const liabilities =
+  1304→      parseNumber(mortgage) + parseNumber(loans) + parseNumber(creditCards) + parseNumber(otherLiab);
+  1305→    const net = assets - liabilities;
+  1306→    return { assets, liabilities, net };
+  1307→  }, [cash, investments, realEstate, vehicles, otherAssets, mortgage, loans, creditCards, otherLiab]);
+  1308→
+  1309→  const exportNetWorth = () => {
+  1310→    const lines = [
+  1311→      `Net Worth Summary (${currency})`,
+  1312→      ``,
+  1313→      `Assets`,
+  1314→      `  Cash: ${money(parseNumber(cash), currency)}`,
+  1315→      `  Investments: ${money(parseNumber(investments), currency)}`,
+  1316→      `  Real estate: ${money(parseNumber(realEstate), currency)}`,
+  1317→      `  Vehicles: ${money(parseNumber(vehicles), currency)}`,
+  1318→      `  Other: ${money(parseNumber(otherAssets), currency)}`,
+  1319→      `  Total assets: ${money(calc.assets, currency)}`,
+  1320→      ``,
+  1321→      `Liabilities`,
+  1322→      `  Mortgage: ${money(parseNumber(mortgage), currency)}`,
+  1323→      `  Loans: ${money(parseNumber(loans), currency)}`,
+  1324→      `  Credit cards: ${money(parseNumber(creditCards), currency)}`,
+  1325→      `  Other: ${money(parseNumber(otherLiab), currency)}`,
+  1326→      `  Total liabilities: ${money(calc.liabilities, currency)}`,
+  1327→      ``,
+  1328→      `Net worth: ${money(calc.net, currency)}`,
+  1329→    ];
+  1330→    navigator.clipboard?.writeText(lines.join("\n"));
+  1331→    toast.success("Net worth summary copied");
+  1332→  };
+  1333→
+  1334→  return (
+  1335→    <div className="space-y-6">
+  1336→      <div className="grid sm:grid-cols-2 gap-4 items-start">
+  1337→        <CurrencySelect value={currency} onChange={setCurrency} />
+  1338→        <div className="flex justify-end">
+  1339→          <Button variant="outline" size="sm" onClick={exportNetWorth}>
+  1340→            <Download className="size-3.5" /> Export summary
+  1341→          </Button>
+  1342→        </div>
+  1343→      </div>
+  1344→
+  1345→      <div className="grid lg:grid-cols-2 gap-6">
+  1346→        <div className="space-y-4">
+  1347→          <h3 className="text-sm font-semibold">Assets</h3>
+  1348→          <div className="grid sm:grid-cols-2 gap-4">
+  1349→            <Field label="Cash &amp; bank">
+  1350→              <Input value={cash} onChange={(e) => setCash(e.target.value)} inputMode="decimal" />
+  1351→            </Field>
+  1352→            <Field label="Investments">
+  1353→              <Input value={investments} onChange={(e) => setInvestments(e.target.value)} inputMode="decimal" />
+  1354→            </Field>
+  1355→            <Field label="Real estate">
+  1356→              <Input value={realEstate} onChange={(e) => setRealEstate(e.target.value)} inputMode="decimal" />
+  1357→            </Field>
+  1358→            <Field label="Vehicles">
+  1359→              <Input value={vehicles} onChange={(e) => setVehicles(e.target.value)} inputMode="decimal" />
+  1360→            </Field>
+  1361→            <Field label="Other assets">
+  1362→              <Input value={otherAssets} onChange={(e) => setOtherAssets(e.target.value)} inputMode="decimal" />
+  1363→            </Field>
+  1364→          </div>
+  1365→          <ResultStat label="Total Assets" value={money(calc.assets, currency)} accent="success" />
+  1366→        </div>
+  1367→
+  1368→        <div className="space-y-4">
+  1369→          <h3 className="text-sm font-semibold">Liabilities</h3>
+  1370→          <div className="grid sm:grid-cols-2 gap-4">
+  1371→            <Field label="Mortgage">
+  1372→              <Input value={mortgage} onChange={(e) => setMortgage(e.target.value)} inputMode="decimal" />
+  1373→            </Field>
+  1374→            <Field label="Loans">
+  1375→              <Input value={loans} onChange={(e) => setLoans(e.target.value)} inputMode="decimal" />
+  1376→            </Field>
+  1377→            <Field label="Credit cards">
+  1378→              <Input value={creditCards} onChange={(e) => setCreditCards(e.target.value)} inputMode="decimal" />
+  1379→            </Field>
+  1380→            <Field label="Other liabilities">
+  1381→              <Input value={otherLiab} onChange={(e) => setOtherLiab(e.target.value)} inputMode="decimal" />
+  1382→            </Field>
+  1383→          </div>
+  1384→          <ResultStat label="Total Liabilities" value={money(calc.liabilities, currency)} accent="warning" />
+  1385→        </div>
+  1386→      </div>
+  1387→
+  1388→      <CopyableStat
+  1389→        label="Net Worth"
+  1390→        displayValue={money(calc.net, currency)}
+  1391→        accent={calc.net >= 0 ? "primary" : "warning"}
+  1392→        sublabel={calc.net >= 0 ? "Positive net worth" : "Negative net worth"}
+  1393→      />
+  1394→
+  1395→      <FormulaBox>Net Worth = Total Assets − Total Liabilities.</FormulaBox>
+  1396→    </div>
+  1397→  );
+  1398→}
+  1399→
+  1400→/* ------------------------------------------------------------------ */
+  1401→/* Main switch                                                          */
+  1402→/* ------------------------------------------------------------------ */
+  1403→
+  1404→export function FinanceCalcs({ calcId }: { calcId: string }) {
+  1405→  switch (calcId) {
+  1406→    case "loan":
+  1407→      return <LoanCalc />;
+  1408→    case "mortgage":
+  1409→      return <MortgageCalc />;
+  1410→    case "emi":
+  1411→      return <EmiCalc />;
+  1412→    case "compound-interest":
+  1413→      return <CompoundInterestCalc />;
+  1414→    case "simple-interest":
+  1415→      return <SimpleInterestCalc />;
+  1416→    case "savings":
+  1417→      return <SavingsCalc />;
+  1418→    case "investment":
+  1419→      return <InvestmentCalc />;
+  1420→    case "roi":
+  1421→      return <RoiCalc />;
+  1422→    case "cagr":
+  1423→      return <CagrCalc />;
+  1424→    case "profit-margin":
+  1425→      return <ProfitMarginCalc />;
+  1426→    case "markup":
+  1427→      return <MarkupCalc />;
+  1428→    case "discount":
+  1429→      return <DiscountCalc />;
+  1430→    case "future-value":
+  1431→      return <FutureValueCalc />;
+  1432→    case "present-value":
+  1433→      return <PresentValueCalc />;
+  1434→    case "break-even":
+  1435→      return <BreakEvenCalc />;
+  1436→    case "salary":
+  1437→      return <SalaryCalc />;
+  1438→    case "retirement":
+  1439→      return <RetirementCalc />;
+  1440→    case "net-worth":
+  1441→      return <NetWorthCalc />;
+  1442→    default:
+  1443→      return null;
+  1444→  }
+  1445→}
+  1446→
