@@ -213,21 +213,35 @@ const CATEGORIES: CategoryDef[] = [
   },
 ];
 
-export function UniversalConverter({ initialCategory }: { initialCategory?: string }) {
-  const initial = initialCategory && CATEGORIES.find(c => c.id === initialCategory)
+export interface PresetPair {
+  category: string;
+  from: string;
+  to: string;
+}
+
+export function UniversalConverter({ initialCategory, preset }: { initialCategory?: string; preset?: PresetPair }) {
+  const initial = (preset?.category && CATEGORIES.find(c => c.id === preset.category))
+    ? preset.category
+    : (initialCategory && CATEGORIES.find(c => c.id === initialCategory))
     ? initialCategory
     : "length";
   const [catId, setCatId] = React.useState(initial);
   const cat = CATEGORIES.find(c => c.id === catId) ?? CATEGORIES[0];
-  const [fromUnit, setFromUnit] = React.useState(cat.primaryFrom);
-  const [toUnit, setToUnit] = React.useState(cat.primaryTo);
+  const [fromUnit, setFromUnit] = React.useState(preset?.from ?? cat.primaryFrom);
+  const [toUnit, setToUnit] = React.useState(preset?.to ?? cat.primaryTo);
   const [fromValue, setFromValue] = React.useState("1");
 
   // Reset units when category changes
   React.useEffect(() => {
-    setFromUnit(cat.primaryFrom);
-    setToUnit(cat.primaryTo);
-  }, [catId]); // eslint-disable-line
+    if (preset && catId === preset.category) {
+      setFromUnit(preset.from);
+      setToUnit(preset.to);
+    } else {
+      setFromUnit(cat.primaryFrom);
+      setToUnit(cat.primaryTo);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catId]);
 
   const fromU = cat.units.find(u => u.id === fromUnit) ?? cat.units[0];
   const toU = cat.units.find(u => u.id === toUnit) ?? cat.units[1] ?? cat.units[0];

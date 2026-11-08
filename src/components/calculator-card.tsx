@@ -5,6 +5,7 @@ import {
   Calculator, Star, type LucideIcon,
   Sigma, Landmark, ReceiptText, HeartPulse, Briefcase, Megaphone,
   CalendarDays, ArrowLeftRight, Wrench, Coffee, Clock,
+  Type, Binary, Code2, Dices,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type CalcMeta, type CalcCategory, CATEGORY_META, useCalc } from "@/lib/calculators-store-bridge";
@@ -12,6 +13,7 @@ import { type CalcMeta, type CalcCategory, CATEGORY_META, useCalc } from "@/lib/
 const ICONS: Record<string, LucideIcon> = {
   Sigma, Landmark, ReceiptText, HeartPulse, Briefcase, Megaphone,
   CalendarDays, ArrowLeftRight, Wrench, Coffee, Calculator, Star, Clock,
+  Type, Binary, Code2, Dices,
 };
 
 export function CalculatorCard({ calc, compact = false }: { calc: CalcMeta; compact?: boolean }) {

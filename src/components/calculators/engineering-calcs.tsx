@@ -893,7 +893,47 @@ export function EngineeringCalcs({ calcId }: { calcId: string }) {
       return <ElectricityBillCalc />;
     case "fuel-cost":
       return <FuelCostCalc />;
+    case "watts-to-amps":
+      return <WattsToAmpsCalc />;
     default:
       return null;
   }
+}
+
+function WattsToAmpsCalc() {
+  const [watts, setWatts] = React.useState("1200");
+  const [volts, setVolts] = React.useState("120");
+  const [type, setType] = React.useState<"dc" | "ac-single">("dc");
+  const [pf, setPf] = React.useState("0.9");
+  const w = parseNumber(watts);
+  const v = parseNumber(volts);
+  const powerFactor = parseNumber(pf);
+  let amps: number;
+  if (type === "dc") amps = v !== 0 ? w / v : 0;
+  else amps = v !== 0 && powerFactor !== 0 ? w / (v * powerFactor) : 0;
+  return (
+    <div className="space-y-4">
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Field label="Power (Watts)"><Input value={watts} onChange={e => setWatts(e.target.value)} inputMode="decimal" /></Field>
+        <Field label="Voltage (Volts)"><Input value={volts} onChange={e => setVolts(e.target.value)} inputMode="decimal" /></Field>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Field label="Current type">
+          <select value={type} onChange={e => setType(e.target.value as "dc" | "ac-single")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm">
+            <option value="dc">DC (Direct Current)</option>
+            <option value="ac-single">AC Single Phase</option>
+          </select>
+        </Field>
+        {type === "ac-single" && (
+          <Field label="Power factor (0–1)"><Input value={pf} onChange={e => setPf(e.target.value)} inputMode="decimal" /></Field>
+        )}
+      </div>
+      <ResultStat label="Current (Amps)" value={formatNumber(amps)} accent="primary" />
+      <FormulaBox>
+        {type === "dc"
+          ? "DC: I (A) = P (W) ÷ V (V). For DC circuits, current is simply power divided by voltage."
+          : "AC single phase: I (A) = P (W) ÷ (V (V) × PF). Power factor (PF) typically 0.8–1.0 for resistive loads."}
+      </FormulaBox>
+    </div>
+  );
 }

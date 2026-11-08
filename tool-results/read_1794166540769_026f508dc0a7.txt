@@ -1,0 +1,800 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { Field, ResultStat, num } from "@/components/calc-page-shell";
+     5→import { Input } from "@/components/ui/input";
+     6→import { Label } from "@/components/ui/label";
+     7→import { Button } from "@/components/ui/button";
+     8→import {
+     9→  Select,
+    10→  SelectContent,
+    11→  SelectItem,
+    12→  SelectTrigger,
+    13→  SelectValue,
+    14→} from "@/components/ui/select";
+    15→import { Switch } from "@/components/ui/switch";
+    16→import { parseNumber, formatNumber } from "@/lib/math-engine";
+    17→import { toast } from "sonner";
+    18→import { Copy } from "lucide-react";
+    19→
+    20→/* ------------------------------------------------------------------ */
+    21→/* Shared bits                                                          */
+    22→/* ------------------------------------------------------------------ */
+    23→
+    24→const DATE_INPUT_CLASS =
+    25→  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    26→
+    27→const DAY_MS = 24 * 60 * 60 * 1000;
+    28→
+    29→/** Parse a YYYY-MM-DD string into a local Date at noon (avoids DST drift). */
+    30→function parseDate(s: string): Date | null {
+    31→  if (!s) return null;
+    32→  const parts = s.split("-").map(Number);
+    33→  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+    34→  const [y, m, d] = parts;
+    35→  const date = new Date(y, m - 1, d, 12, 0, 0, 0);
+    36→  if (Number.isNaN(date.getTime())) return null;
+    37→  return date;
+    38→}
+    39→
+    40→/** Format a Date back to a YYYY-MM-DD string for <input type="date">. */
+    41→function toDateInput(d: Date): string {
+    42→  const y = d.getFullYear();
+    43→  const m = String(d.getMonth() + 1).padStart(2, "0");
+    44→  const day = String(d.getDate()).padStart(2, "0");
+    45→  return `${y}-${m}-${day}`;
+    46→}
+    47→
+    48→/** Today's date as YYYY-MM-DD (local). */
+    49→function todayInput(): string {
+    50→  return toDateInput(new Date());
+    51→}
+    52→
+    53→/** Whole-day difference between two dates (end − start), rounded. */
+    54→function daysBetween(start: Date, end: Date): number {
+    55→  return Math.round((end.getTime() - start.getTime()) / DAY_MS);
+    56→}
+    57→
+    58→/** Add (or subtract) calendar months, clamping the day to month length. */
+    59→function addMonths(date: Date, n: number): Date {
+    60→  const d = new Date(date.getTime());
+    61→  const day = d.getDate();
+    62→  d.setDate(1); // neutralize month-length edge cases
+    63→  d.setMonth(d.getMonth() + n);
+    64→  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    65→  d.setDate(Math.min(day, lastDay));
+    66→  return d;
+    67→}
+    68→
+    69→const WEEKDAYS = [
+    70→  "Sunday", "Monday", "Tuesday", "Wednesday",
+    71→  "Thursday", "Friday", "Saturday",
+    72→];
+    73→const MONTHS = [
+    74→  "January", "February", "March", "April", "May", "June",
+    75→  "July", "August", "September", "October", "November", "December",
+    76→];
+    77→
+    78→/** Pretty long-form date, e.g. "March 14, 2025". */
+    79→function formatLong(d: Date): string {
+    80→  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    81→}
+    82→
+    83→/** Parse a HH:MM string into hours/minutes, or null. */
+    84→function parseTime(s: string): { h: number; m: number } | null {
+    85→  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+    86→  if (!m) return null;
+    87→  const h = +m[1];
+    88→  const min = +m[2];
+    89→  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+    90→  return { h, m: min };
+    91→}
+    92→
+    93→function NoteBox({ children }: { children: React.ReactNode }) {
+    94→  return (
+    95→    <div className="rounded-xl bg-muted/30 border border-border p-4 text-sm text-muted-foreground">
+    96→      {children}
+    97→    </div>
+    98→  );
+    99→}
+   100→
+   101→function CopyableStat({
+   102→  label,
+   103→  displayValue,
+   104→  accent,
+   105→  sublabel,
+   106→}: {
+   107→  label: string;
+   108→  displayValue: string;
+   109→  accent?: "primary" | "success" | "warning" | "default";
+   110→  sublabel?: string;
+   111→}) {
+   112→  return (
+   113→    <div className="relative">
+   114→      <Button
+   115→        variant="ghost"
+   116→        size="icon"
+   117→        className="absolute top-2 right-2 size-7 text-muted-foreground hover:text-foreground"
+   118→        onClick={() => {
+   119→          navigator.clipboard?.writeText(displayValue);
+   120→          toast.success(`${label} copied`);
+   121→        }}
+   122→        aria-label={`Copy ${label}`}
+   123→      >
+   124→        <Copy className="size-3.5" />
+   125→      </Button>
+   126→      <ResultStat label={label} value={displayValue} accent={accent} sublabel={sublabel} />
+   127→    </div>
+   128→  );
+   129→}
+   130→
+   131→/* ------------------------------------------------------------------ */
+   132→/* 1. Age Calculator                                                    */
+   133→/* ------------------------------------------------------------------ */
+   134→
+   135→function AgeCalc() {
+   136→  const [birth, setBirth] = React.useState("1995-06-15");
+   137→
+   138→  const calc = React.useMemo(() => {
+   139→    const birthDate = parseDate(birth);
+   140→    if (!birthDate) return null;
+   141→    const now = new Date();
+   142→    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
+   143→
+   144→    let years = today.getFullYear() - birthDate.getFullYear();
+   145→    let months = today.getMonth() - birthDate.getMonth();
+   146→    let days = today.getDate() - birthDate.getDate();
+   147→
+   148→    if (days < 0) {
+   149→      months -= 1;
+   150→      const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+   151→      days += prevMonth.getDate();
+   152→    }
+   153→    if (months < 0) {
+   154→      years -= 1;
+   155→      months += 12;
+   156→    }
+   157→    if (years < 0) {
+   158→      return { invalid: true as const };
+   159→    }
+   160→
+   161→    const totalDays = daysBetween(birthDate, today);
+   162→    const totalWeeks = Math.floor(totalDays / 7);
+   163→    const totalHours = totalDays * 24;
+   164→
+   165→    // Next birthday
+   166→    let nextBday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate(), 12, 0, 0, 0);
+   167→    if (nextBday.getTime() < today.getTime()) {
+   168→      nextBday = new Date(today.getFullYear() + 1, birthDate.getMonth(), birthDate.getDate(), 12, 0, 0, 0);
+   169→    }
+   170→    const daysUntilBirthday = daysBetween(today, nextBday);
+   171→
+   172→    return {
+   173→      invalid: false as const,
+   174→      years,
+   175→      months,
+   176→      days,
+   177→      totalDays,
+   178→      totalWeeks,
+   179→      totalHours,
+   180→      daysUntilBirthday,
+   181→      nextBday,
+   182→    };
+   183→  }, [birth]);
+   184→
+   185→  if (!calc) {
+   186→    return (
+   187→      <div className="space-y-6">
+   188→        <div className="grid sm:grid-cols-2 gap-4">
+   189→          <Field label="Birth date">
+   190→            <input
+   191→              type="date"
+   192→              className={DATE_INPUT_CLASS}
+   193→              value={birth}
+   194→              onChange={(e) => setBirth(e.target.value)}
+   195→            />
+   196→          </Field>
+   197→        </div>
+   198→        <NoteBox>Enter a valid birth date to compute your age.</NoteBox>
+   199→      </div>
+   200→    );
+   201→  }
+   202→
+   203→  if (calc.invalid) {
+   204→    return (
+   205→      <div className="space-y-6">
+   206→        <div className="grid sm:grid-cols-2 gap-4">
+   207→          <Field label="Birth date">
+   208→            <input
+   209→              type="date"
+   210→              className={DATE_INPUT_CLASS}
+   211→              value={birth}
+   212→              onChange={(e) => setBirth(e.target.value)}
+   213→            />
+   214→          </Field>
+   215→        </div>
+   216→        <NoteBox>The birth date is in the future. Choose a date in the past.</NoteBox>
+   217→      </div>
+   218→    );
+   219→  }
+   220→
+   221→  const ageStr = `${calc.years} years, ${calc.months} months, ${calc.days} days`;
+   222→
+   223→  return (
+   224→    <div className="space-y-6">
+   225→      <div className="grid sm:grid-cols-2 gap-4">
+   226→        <Field label="Birth date">
+   227→          <input
+   228→            type="date"
+   229→            className={DATE_INPUT_CLASS}
+   230→            value={birth}
+   231→            onChange={(e) => setBirth(e.target.value)}
+   232→          />
+   233→        </Field>
+   234→        <div className="text-xs text-muted-foreground self-end pb-2">
+   235→          Computed as of {formatLong(new Date())}
+   236→        </div>
+   237→      </div>
+   238→
+   239→      <CopyableStat label="Age" displayValue={ageStr} accent="primary" />
+   240→
+   241→      <div className="grid sm:grid-cols-3 gap-4">
+   242→        <ResultStat label="Total days lived" value={num(calc.totalDays, 0)} />
+   243→        <ResultStat label="Total weeks" value={num(calc.totalWeeks, 0)} />
+   244→        <ResultStat label="Total hours" value={num(calc.totalHours, 0)} />
+   245→      </div>
+   246→
+   247→      <ResultStat
+   248→        label="Next birthday"
+   249→        value={`${num(calc.daysUntilBirthday, 0)} days`}
+   250→        sublabel={formatLong(calc.nextBday)}
+   251→        accent="warning"
+   252→      />
+   253→
+   254→      <NoteBox>
+   255→        <strong className="text-foreground">How it works:</strong> Years are computed by
+   256→        subtracting the birth year from the current year, then adjusting if this year&apos;s
+   257→        birthday hasn&apos;t occurred yet. Remaining months and days are derived from the
+   258→        calendar gap, borrowing days from the previous month when needed. Totals use 24-hour
+   259→        days and ignore leap seconds.
+   260→      </NoteBox>
+   261→    </div>
+   262→  );
+   263→}
+   264→
+   265→/* ------------------------------------------------------------------ */
+   266→/* 2. Days Between Dates                                               */
+   267→/* ------------------------------------------------------------------ */
+   268→
+   269→function DaysBetweenCalc() {
+   270→  const [start, setStart] = React.useState("2024-01-01");
+   271→  const [end, setEnd] = React.useState("2024-12-31");
+   272→
+   273→  const calc = React.useMemo(() => {
+   274→    const s = parseDate(start);
+   275→    const e = parseDate(end);
+   276→    if (!s || !e) return null;
+   277→    const totalDays = daysBetween(s, e);
+   278→    const absDays = Math.abs(totalDays);
+   279→    const weeks = Math.floor(absDays / 7);
+   280→    const remainder = absDays % 7;
+   281→    const monthsApprox = absDays / 30.4375;
+   282→    const yearsApprox = absDays / 365.25;
+   283→    const sign = totalDays < 0 ? -1 : 1;
+   284→    return {
+   285→      totalDays,
+   286→      absDays,
+   287→      weeks: sign * weeks,
+   288→      remainder,
+   289→      monthsApprox,
+   290→      yearsApprox,
+   291→    };
+   292→  }, [start, end]);
+   293→
+   294→  if (!calc) {
+   295→    return (
+   296→      <div className="space-y-6">
+   297→        <div className="grid sm:grid-cols-2 gap-4">
+   298→          <Field label="Start date">
+   299→            <input type="date" className={DATE_INPUT_CLASS} value={start} onChange={(e) => setStart(e.target.value)} />
+   300→          </Field>
+   301→          <Field label="End date">
+   302→            <input type="date" className={DATE_INPUT_CLASS} value={end} onChange={(e) => setEnd(e.target.value)} />
+   303→          </Field>
+   304→        </div>
+   305→        <NoteBox>Enter two valid dates to compute the gap between them.</NoteBox>
+   306→      </div>
+   307→    );
+   308→  }
+   309→
+   310→  return (
+   311→    <div className="space-y-6">
+   312→      <div className="grid sm:grid-cols-2 gap-4">
+   313→        <Field label="Start date">
+   314→          <input type="date" className={DATE_INPUT_CLASS} value={start} onChange={(e) => setStart(e.target.value)} />
+   315→        </Field>
+   316→        <Field label="End date">
+   317→          <input type="date" className={DATE_INPUT_CLASS} value={end} onChange={(e) => setEnd(e.target.value)} />
+   318→        </Field>
+   319→      </div>
+   320→
+   321→      <CopyableStat
+   322→        label="Total days"
+   323→        displayValue={num(calc.totalDays, 0)}
+   324→        accent="primary"
+   325→        sublabel={calc.totalDays < 0 ? "End date is before start date" : "Inclusive of one endpoint"}
+   326→      />
+   327→
+   328→      <div className="grid sm:grid-cols-3 gap-4">
+   329→        <ResultStat
+   330→          label="Weeks"
+   331→          value={`${num(calc.weeks, 0)} wk`}
+   332→          sublabel={`+ ${calc.remainder} days remainder`}
+   333→        />
+   334→        <ResultStat label="Months (approx)" value={num(calc.monthsApprox, 1)} sublabel="30.4375 days each" />
+   335→        <ResultStat label="Years (approx)" value={num(calc.yearsApprox, 2)} sublabel="365.25 days each" />
+   336→      </div>
+   337→
+   338→      <NoteBox>
+   339→        <strong className="text-foreground">How it works:</strong> The total day count uses
+   340→        the difference between the two dates&apos; Unix timestamps, divided by 86,400,000 ms.
+   341→        Leap years are handled automatically by the Date object. Months and years are
+   342→        approximations based on average lengths (30.4375 days / 365.25 days) — for exact
+   343→        calendar months, use the Date Add/Subtract tool.
+   344→      </NoteBox>
+   345→    </div>
+   346→  );
+   347→}
+   348→
+   349→/* ------------------------------------------------------------------ */
+   350→/* 3. Date Add / Subtract                                              */
+   351→/* ------------------------------------------------------------------ */
+   352→
+   353→function DateAddSubtractCalc() {
+   354→  const [start, setStart] = React.useState(todayInput());
+   355→  const [op, setOp] = React.useState<"add" | "subtract">("add");
+   356→  const [amount, setAmount] = React.useState("90");
+   357→  const [unit, setUnit] = React.useState<"days" | "weeks" | "months" | "years">("days");
+   358→
+   359→  const calc = React.useMemo(() => {
+   360→    const s = parseDate(start);
+   361→    const n = parseNumber(amount);
+   362→    if (!s || !Number.isFinite(n)) return null;
+   363→    const signed = op === "add" ? n : -n;
+   364→    let result = new Date(s.getTime());
+   365→    switch (unit) {
+   366→      case "days":
+   367→        result = new Date(s.getTime() + signed * DAY_MS);
+   368→        break;
+   369→      case "weeks":
+   370→        result = new Date(s.getTime() + signed * 7 * DAY_MS);
+   371→        break;
+   372→      case "months":
+   373→        result = addMonths(s, signed);
+   374→        break;
+   375→      case "years":
+   376→        result = addMonths(s, signed * 12);
+   377→        break;
+   378→    }
+   379→    return { result, dayOfWeek: WEEKDAYS[result.getDay()] };
+   380→  }, [start, op, amount, unit]);
+   381→
+   382→  if (!calc) {
+   383→    return (
+   384→      <div className="space-y-6">
+   385→        <div className="grid sm:grid-cols-2 gap-4">
+   386→          <Field label="Start date">
+   387→            <input type="date" className={DATE_INPUT_CLASS} value={start} onChange={(e) => setStart(e.target.value)} />
+   388→          </Field>
+   389→          <Field label="Operation">
+   390→            <Select value={op} onValueChange={(v) => setOp(v as "add" | "subtract")}>
+   391→              <SelectTrigger className="w-full">
+   392→                <SelectValue />
+   393→              </SelectTrigger>
+   394→              <SelectContent>
+   395→                <SelectItem value="add">Add</SelectItem>
+   396→                <SelectItem value="subtract">Subtract</SelectItem>
+   397→              </SelectContent>
+   398→            </Select>
+   399→          </Field>
+   400→          <Field label="Amount">
+   401→            <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
+   402→          </Field>
+   403→          <Field label="Unit">
+   404→            <Select value={unit} onValueChange={(v) => setUnit(v as "days" | "weeks" | "months" | "years")}>
+   405→              <SelectTrigger className="w-full">
+   406→                <SelectValue />
+   407→              </SelectTrigger>
+   408→              <SelectContent>
+   409→                <SelectItem value="days">Days</SelectItem>
+   410→                <SelectItem value="weeks">Weeks</SelectItem>
+   411→                <SelectItem value="months">Months</SelectItem>
+   412→                <SelectItem value="years">Years</SelectItem>
+   413→              </SelectContent>
+   414→            </Select>
+   415→          </Field>
+   416→        </div>
+   417→        <NoteBox>Enter a start date and an amount to compute the resulting date.</NoteBox>
+   418→      </div>
+   419→    );
+   420→  }
+   421→
+   422→  return (
+   423→    <div className="space-y-6">
+   424→      <div className="grid sm:grid-cols-2 gap-4">
+   425→        <Field label="Start date">
+   426→          <input type="date" className={DATE_INPUT_CLASS} value={start} onChange={(e) => setStart(e.target.value)} />
+   427→        </Field>
+   428→        <Field label="Operation">
+   429→          <Select value={op} onValueChange={(v) => setOp(v as "add" | "subtract")}>
+   430→            <SelectTrigger className="w-full">
+   431→              <SelectValue />
+   432→            </SelectTrigger>
+   433→            <SelectContent>
+   434→              <SelectItem value="add">Add</SelectItem>
+   435→              <SelectItem value="subtract">Subtract</SelectItem>
+   436→            </SelectContent>
+   437→          </Select>
+   438→        </Field>
+   439→        <Field label="Amount">
+   440→          <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
+   441→        </Field>
+   442→        <Field label="Unit">
+   443→          <Select value={unit} onValueChange={(v) => setUnit(v as "days" | "weeks" | "months" | "years")}>
+   444→            <SelectTrigger className="w-full">
+   445→              <SelectValue />
+   446→            </SelectTrigger>
+   447→            <SelectContent>
+   448→              <SelectItem value="days">Days</SelectItem>
+   449→              <SelectItem value="weeks">Weeks</SelectItem>
+   450→              <SelectItem value="months">Months</SelectItem>
+   451→              <SelectItem value="years">Years</SelectItem>
+   452→            </SelectContent>
+   453→          </Select>
+   454→        </Field>
+   455→      </div>
+   456→
+   457→      <CopyableStat
+   458→        label="Resulting date"
+   459→        displayValue={formatLong(calc.result)}
+   460→        accent="primary"
+   461→        sublabel={`${calc.dayOfWeek} · ${toDateInput(calc.result)}`}
+   462→      />
+   463→
+   464→      <NoteBox>
+   465→        <strong className="text-foreground">How it works:</strong> Days and weeks use exact
+   466→        millisecond arithmetic (86,400,000 ms per day). Months and years use calendar addition:
+   467→        the month is shifted and the day is clamped to the target month&apos;s length (e.g.,
+   468→        January 31 + 1 month = February 28 or 29). Year rollover is handled automatically.
+   469→      </NoteBox>
+   470→    </div>
+   471→  );
+   472→}
+   473→
+   474→/* ------------------------------------------------------------------ */
+   475→/* 4. Time Duration                                                    */
+   476→/* ------------------------------------------------------------------ */
+   477→
+   478→function TimeDurationCalc() {
+   479→  const [start, setStart] = React.useState("09:00");
+   480→  const [end, setEnd] = React.useState("17:30");
+   481→  const [nextDay, setNextDay] = React.useState(false);
+   482→
+   483→  const calc = React.useMemo(() => {
+   484→    const s = parseTime(start);
+   485→    const e = parseTime(end);
+   486→    if (!s || !e) return null;
+   487→    let startMin = s.h * 60 + s.m;
+   488→    let endMin = e.h * 60 + e.m;
+   489→    if (nextDay) endMin += 24 * 60;
+   490→    if (endMin < startMin) endMin += 24 * 60; // auto next-day if end < start
+   491→    const totalMin = endMin - startMin;
+   492→    const hours = Math.floor(totalMin / 60);
+   493→    const mins = totalMin % 60;
+   494→    const decimalHours = totalMin / 60;
+   495→    const autoNextDay = endMin - startMin >= 24 * 60;
+   496→    return {
+   497→      totalMin,
+   498→      hours,
+   499→      mins,
+   500→      decimalHours,
+   501→      autoNextDay,
+   502→    };
+   503→  }, [start, end, nextDay]);
+   504→
+   505→  if (!calc) {
+   506→    return (
+   507→      <div className="space-y-6">
+   508→        <div className="grid sm:grid-cols-2 gap-4">
+   509→          <Field label="Start time">
+   510→            <input type="time" className={DATE_INPUT_CLASS} value={start} onChange={(e) => setStart(e.target.value)} />
+   511→          </Field>
+   512→          <Field label="End time">
+   513→            <input type="time" className={DATE_INPUT_CLASS} value={end} onChange={(e) => setEnd(e.target.value)} />
+   514→          </Field>
+   515→        </div>
+   516→        <NoteBox>Enter two valid times in 24-hour HH:MM format.</NoteBox>
+   517→      </div>
+   518→    );
+   519→  }
+   520→
+   521→  const durationStr = `${String(calc.hours).padStart(2, "0")}:${String(calc.mins).padStart(2, "0")}`;
+   522→
+   523→  return (
+   524→    <div className="space-y-6">
+   525→      <div className="grid sm:grid-cols-2 gap-4">
+   526→        <Field label="Start time">
+   527→          <input type="time" className={DATE_INPUT_CLASS} value={start} onChange={(e) => setStart(e.target.value)} />
+   528→        </Field>
+   529→        <Field label="End time">
+   530→          <input type="time" className={DATE_INPUT_CLASS} value={end} onChange={(e) => setEnd(e.target.value)} />
+   531→        </Field>
+   532→      </div>
+   533→
+   534→      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+   535→        <Switch checked={nextDay} onCheckedChange={setNextDay} id="next-day" />
+   536→        <Label htmlFor="next-day" className="text-sm cursor-pointer">
+   537→          End time is on the next day
+   538→        </Label>
+   539→        {calc.autoNextDay && !nextDay && (
+   540→          <span className="text-xs text-muted-foreground ml-auto">
+   541→            Auto-detected: end falls before start
+   542→          </span>
+   543→        )}
+   544→      </div>
+   545→
+   546→      <CopyableStat
+   547→        label="Duration"
+   548→        displayValue={durationStr}
+   549→        accent="primary"
+   550→        sublabel={`${calc.hours}h ${calc.mins}m`}
+   551→      />
+   552→
+   553→      <div className="grid sm:grid-cols-2 gap-4">
+   554→        <ResultStat label="Total minutes" value={num(calc.totalMin, 0)} />
+   555→        <ResultStat label="Total hours (decimal)" value={formatNumber(calc.decimalHours, 3)} />
+   556→      </div>
+   557→
+   558→      <NoteBox>
+   559→        <strong className="text-foreground">How it works:</strong> Times are converted to
+   560→        minutes since midnight; the difference is the duration in minutes. If the end time is
+   561→        earlier than the start time and the next-day toggle is off, the calculator assumes the
+   562→        end falls on the following day and adds 24 hours automatically. The decimal-hours
+   563→        value is useful for payroll and billing systems.
+   564→      </NoteBox>
+   565→    </div>
+   566→  );
+   567→}
+   568→
+   569→/* ------------------------------------------------------------------ */
+   570→/* 5. Working Days Calculator                                          */
+   571→/* ------------------------------------------------------------------ */
+   572→
+   573→function WorkingDaysCalc() {
+   574→  const [start, setStart] = React.useState("2024-01-01");
+   575→  const [end, setEnd] = React.useState("2024-03-31");
+   576→  const [weekend, setWeekend] = React.useState<"sun-sat" | "fri-sat">("sun-sat");
+   577→
+   578→  const calc = React.useMemo(() => {
+   579→    const s = parseDate(start);
+   580→    const e = parseDate(end);
+   581→    if (!s || !e) return null;
+   582→    // Normalize: iterate day-by-day from the earlier to the later date (inclusive).
+   583→    const lo = s.getTime() <= e.getTime() ? s : e;
+   584→    const hi = s.getTime() <= e.getTime() ? e : s;
+   585→    const weekendSet = weekend === "sun-sat" ? new Set([0, 6]) : new Set([5, 6]);
+   586→    let total = 0;
+   587→    let weekendDays = 0;
+   588→    const cursor = new Date(lo.getTime());
+   589→    while (cursor.getTime() <= hi.getTime()) {
+   590→      total += 1;
+   591→      if (weekendSet.has(cursor.getDay())) weekendDays += 1;
+   592→      cursor.setDate(cursor.getDate() + 1);
+   593→    }
+   594→    const workingDays = total - weekendDays;
+   595→    const workingWeeks = workingDays / 5;
+   596→    return { total, weekendDays, workingDays, workingWeeks };
+   597→  }, [start, end, weekend]);
+   598→
+   599→  if (!calc) {
+   600→    return (
+   601→      <div className="space-y-6">
+   602→        <div className="grid sm:grid-cols-2 gap-4">
+   603→          <Field label="Start date">
+   604→            <input type="date" className={DATE_INPUT_CLASS} value={start} onChange={(e) => setStart(e.target.value)} />
+   605→          </Field>
+   606→          <Field label="End date">
+   607→            <input type="date" className={DATE_INPUT_CLASS} value={end} onChange={(e) => setEnd(e.target.value)} />
+   608→          </Field>
+   609→          <Field label="Weekend pattern">
+   610→            <Select value={weekend} onValueChange={(v) => setWeekend(v as "sun-sat" | "fri-sat")}>
+   611→              <SelectTrigger className="w-full">
+   612→                <SelectValue />
+   613→              </SelectTrigger>
+   614→              <SelectContent>
+   615→                <SelectItem value="sun-sat">Sat &amp; Sun (Western)</SelectItem>
+   616→                <SelectItem value="fri-sat">Fri &amp; Sat (Middle East)</SelectItem>
+   617→              </SelectContent>
+   618→            </Select>
+   619→          </Field>
+   620→        </div>
+   621→        <NoteBox>Enter two valid dates to compute the working-day count.</NoteBox>
+   622→      </div>
+   623→    );
+   624→  }
+   625→
+   626→  return (
+   627→    <div className="space-y-6">
+   628→      <div className="grid sm:grid-cols-2 gap-4">
+   629→        <Field label="Start date">
+   630→          <input type="date" className={DATE_INPUT_CLASS} value={start} onChange={(e) => setStart(e.target.value)} />
+   631→        </Field>
+   632→        <Field label="End date">
+   633→          <input type="date" className={DATE_INPUT_CLASS} value={end} onChange={(e) => setEnd(e.target.value)} />
+   634→        </Field>
+   635→        <Field label="Weekend pattern">
+   636→          <Select value={weekend} onValueChange={(v) => setWeekend(v as "sun-sat" | "fri-sat")}>
+   637→            <SelectTrigger className="w-full">
+   638→              <SelectValue />
+   639→            </SelectTrigger>
+   640→            <SelectContent>
+   641→              <SelectItem value="sun-sat">Sat &amp; Sun (Western)</SelectItem>
+   642→              <SelectItem value="fri-sat">Fri &amp; Sat (Middle East)</SelectItem>
+   643→            </SelectContent>
+   644→          </Select>
+   645→        </Field>
+   646→      </div>
+   647→
+   648→      <CopyableStat
+   649→        label="Working days"
+   650→        displayValue={num(calc.workingDays, 0)}
+   651→        accent="primary"
+   652→        sublabel="Excludes weekends; both endpoints inclusive"
+   653→      />
+   654→
+   655→      <div className="grid sm:grid-cols-3 gap-4">
+   656→        <ResultStat label="Total days" value={num(calc.total, 0)} />
+   657→        <ResultStat label="Weekend days" value={num(calc.weekendDays, 0)} />
+   658→        <ResultStat label="Working weeks" value={num(calc.workingWeeks, 1)} sublabel="Assumes a 5-day week" />
+   659→      </div>
+   660→
+   661→      <NoteBox>
+   662→        <strong className="text-foreground">How it works:</strong> The calculator iterates
+   663→        through every calendar day from the start date to the end date (inclusive of both
+   664→        endpoints) and checks each day&apos;s <code>getDay()</code> value (0 = Sunday,
+   665→        6 = Saturday). Days matching the selected weekend pattern are excluded; the rest are
+   666→        counted as working days. Public holidays are not subtracted — add them manually if
+   667→        needed.
+   668→      </NoteBox>
+   669→    </div>
+   670→  );
+   671→}
+   672→
+   673→/* ------------------------------------------------------------------ */
+   674→/* 6. Countdown Calculator                                             */
+   675→/* ------------------------------------------------------------------ */
+   676→
+   677→function CountdownCalc() {
+   678→  const now = new Date();
+   679→  const nextNewYear = new Date(now.getFullYear() + 1, 0, 1, 0, 0, 0, 0);
+   680→  const [targetDate, setTargetDate] = React.useState(toDateInput(nextNewYear));
+   681→  const [targetTime, setTargetTime] = React.useState("00:00");
+   682→  const [tick, setTick] = React.useState(0);
+   683→
+   684→  React.useEffect(() => {
+   685→    const id = setInterval(() => setTick((t) => t + 1), 1000);
+   686→    return () => clearInterval(id);
+   687→  }, []);
+   688→
+   689→  const target = React.useMemo(() => {
+   690→    const d = parseDate(targetDate);
+   691→    const t = parseTime(targetTime);
+   692→    if (!d || !t) return null;
+   693→    return new Date(
+   694→      d.getFullYear(),
+   695→      d.getMonth(),
+   696→      d.getDate(),
+   697→      t.h,
+   698→      t.m,
+   699→      0,
+   700→      0
+   701→    );
+   702→  }, [targetDate, targetTime]);
+   703→
+   704→  const remaining = React.useMemo(() => {
+   705→    // tick is read here to force recompute every second
+   706→    void tick;
+   707→    if (!target) return null;
+   708→    const nowMs = Date.now();
+   709→    const diff = target.getTime() - nowMs;
+   710→    const isPast = diff <= 0;
+   711→    const abs = Math.abs(diff);
+   712→    const days = Math.floor(abs / DAY_MS);
+   713→    const hours = Math.floor((abs % DAY_MS) / (60 * 60 * 1000));
+   714→    const minutes = Math.floor((abs % (60 * 60 * 1000)) / (60 * 1000));
+   715→    const seconds = Math.floor((abs % (60 * 1000)) / 1000);
+   716→    return { isPast, days, hours, minutes, seconds };
+   717→  }, [target, tick]);
+   718→
+   719→  if (!target || !remaining) {
+   720→    return (
+   721→      <div className="space-y-6">
+   722→        <div className="grid sm:grid-cols-2 gap-4">
+   723→          <Field label="Target date">
+   724→            <input type="date" className={DATE_INPUT_CLASS} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+   725→          </Field>
+   726→          <Field label="Target time (optional)">
+   727→            <input type="time" className={DATE_INPUT_CLASS} value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
+   728→          </Field>
+   729→        </div>
+   730→        <NoteBox>Enter a valid target date and time to start the countdown.</NoteBox>
+   731→      </div>
+   732→    );
+   733→  }
+   734→
+   735→  const headline = `${num(remaining.days, 0)}d ${String(remaining.hours).padStart(2, "0")}h ${String(
+   736→    remaining.minutes
+   737→  ).padStart(2, "0")}m ${String(remaining.seconds).padStart(2, "0")}s`;
+   738→
+   739→  return (
+   740→    <div className="space-y-6">
+   741→      <div className="grid sm:grid-cols-2 gap-4">
+   742→        <Field label="Target date">
+   743→          <input type="date" className={DATE_INPUT_CLASS} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+   744→        </Field>
+   745→        <Field label="Target time (optional)">
+   746→          <input type="time" className={DATE_INPUT_CLASS} value={targetTime} onChange={(e) => setTargetTime(e.target.value)} />
+   747→        </Field>
+   748→        <div className="text-xs text-muted-foreground self-end pb-2">
+   749→          Target: {formatLong(target)} at {targetTime}
+   750→        </div>
+   751→      </div>
+   752→
+   753→      <CopyableStat
+   754→        label={remaining.isPast ? "Time elapsed" : "Time remaining"}
+   755→        displayValue={headline}
+   756→        accent={remaining.isPast ? "warning" : "primary"}
+   757→        sublabel={remaining.isPast ? "Target has passed" : "Updating every second"}
+   758→      />
+   759→
+   760→      <div className="grid grid-cols-4 gap-3">
+   761→        <ResultStat label="Days" value={num(remaining.days, 0)} />
+   762→        <ResultStat label="Hours" value={String(remaining.hours).padStart(2, "0")} />
+   763→        <ResultStat label="Minutes" value={String(remaining.minutes).padStart(2, "0")} />
+   764→        <ResultStat label="Seconds" value={String(remaining.seconds).padStart(2, "0")} />
+   765→      </div>
+   766→
+   767→      <NoteBox>
+   768→        <strong className="text-foreground">How it works:</strong> A <code>setInterval</code>{" "}
+   769→        loop fires once per second and forces a recompute of the gap between the current time
+   770→        and the target. The interval is cleared on unmount to prevent memory leaks. When the
+   771→        target time has passed, the display switches to elapsed mode and continues counting
+   772→        upward. Times use the viewer&apos;s local timezone.
+   773→      </NoteBox>
+   774→    </div>
+   775→  );
+   776→}
+   777→
+   778→/* ------------------------------------------------------------------ */
+   779→/* Main switch                                                          */
+   780→/* ------------------------------------------------------------------ */
+   781→
+   782→export function DateTimeCalcs({ calcId }: { calcId: string }) {
+   783→  switch (calcId) {
+   784→    case "age":
+   785→      return <AgeCalc />;
+   786→    case "days-between":
+   787→      return <DaysBetweenCalc />;
+   788→    case "date-add-subtract":
+   789→      return <DateAddSubtractCalc />;
+   790→    case "time-duration":
+   791→      return <TimeDurationCalc />;
+   792→    case "working-days":
+   793→      return <WorkingDaysCalc />;
+   794→    case "countdown":
+   795→      return <CountdownCalc />;
+   796→    default:
+   797→      return null;
+   798→  }
+   799→}
+   800→

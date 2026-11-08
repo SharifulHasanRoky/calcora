@@ -10,13 +10,15 @@ import {
 } from "@/lib/calculators-store-bridge";
 import {
   Sigma, Landmark, ReceiptText, HeartPulse, Briefcase, Megaphone,
-  CalendarDays, ArrowLeftRight, Wrench, Coffee, Calculator, type LucideIcon,
+  CalendarDays, ArrowLeftRight, Wrench, Coffee, Calculator,
+  Type, Binary, Code2, Dices, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
   Sigma, Landmark, ReceiptText, HeartPulse, Briefcase, Megaphone,
   CalendarDays, ArrowLeftRight, Wrench, Coffee, Calculator,
+  Type, Binary, Code2, Dices,
 };
 
 export function DirectoryPage() {

@@ -1078,6 +1078,38 @@ function StdDevCalc() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Percentage Change (combined increase/decrease)                       */
+/* ------------------------------------------------------------------ */
+
+function PercentageChangeCalc() {
+  const [from, setFrom] = React.useState("200");
+  const [to, setTo] = React.useState("250");
+  const f = parseNumber(from);
+  const t = parseNumber(to);
+  const change = t - f;
+  const pct = f !== 0 ? (change / Math.abs(f)) * 100 : 0;
+  const isIncrease = change >= 0;
+  return (
+    <div className="space-y-4">
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Field label="From value (original)"><Input value={from} onChange={e => setFrom(e.target.value)} inputMode="decimal" /></Field>
+        <Field label="To value (new)"><Input value={to} onChange={e => setTo(e.target.value)} inputMode="decimal" /></Field>
+      </div>
+      <ResultStat
+        label={isIncrease ? "Percentage increase" : "Percentage decrease"}
+        value={`${isIncrease ? "+" : ""}${formatNumber(pct)}%`}
+        accent={isIncrease ? "success" : "warning"}
+      />
+      <div className="grid grid-cols-2 gap-3">
+        <ResultStat label="Absolute change" value={formatNumber(change)} />
+        <ResultStat label="Ratio" value={f !== 0 ? `${formatNumber(t / f)}×` : "—"} />
+      </div>
+      <Formula>Percentage change = ((new − original) ÷ |original|) × 100 = (({t} − {f}) ÷ |{f}|) × 100 = {formatNumber(pct)}%</Formula>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Main switcher                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -1091,6 +1123,8 @@ export function PercentageCalcs({ calcId }: { calcId: string }) {
       return <PercentageDecreaseCalc />;
     case "percentage-difference":
       return <PercentageDifferenceCalc />;
+    case "percentage-change":
+      return <PercentageChangeCalc />;
     case "ratio":
       return <RatioCalc />;
     case "average":

@@ -56,7 +56,7 @@ export function HomePage() {
         <div className="text-center max-w-3xl mx-auto pt-6 sm:pt-12">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground mb-5">
             <Sparkles className="size-3.5 text-primary" />
-            70+ calculators · No sign-up · Works offline
+            170+ calculators · No sign-up · Works offline
           </div>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-balance">
             Every Calculation.{" "}
@@ -78,7 +78,7 @@ export function HomePage() {
                   <Input
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
-                    placeholder="Search 70+ calculators — try 'mortgage', 'BMI', 'tax US'…"
+                    placeholder="Search 170+ calculators — try 'mortgage', 'BMI', 'tax US'…"
                     className="pl-12 h-14 rounded-2xl text-base shadow-sm"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && searchResults[0]) {
