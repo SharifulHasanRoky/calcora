@@ -48,30 +48,36 @@ export function HomePage() {
 
   return (
     <div className="space-y-14 sm:space-y-16">
-      {/* HERO */}
+      {/* HERO = CALCULATOR FIRST, then headline/search below */}
       <section className="relative">
         <div className="absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[400px] rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full bg-primary/10 blur-3xl" />
         </div>
 
-        <div className="text-center max-w-3xl mx-auto pt-6 sm:pt-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground mb-5">
+        {/* Universal Calculator — FIRST thing on the page */}
+        <div className="rounded-3xl border border-border bg-background p-3 sm:p-5 shadow-sm">
+          <UniversalCalculator />
+        </div>
+
+        {/* Headline + search + shortcuts BELOW calculator */}
+        <div className="text-center max-w-3xl mx-auto mt-8">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground mb-4">
             <Sparkles className="size-3.5 text-primary" />
             170+ calculators · No sign-up · Works offline
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-balance">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-balance">
             Every Calculation.{" "}
             <span className="bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-transparent">
               One Beautiful Experience.
             </span>
           </h1>
-          <p className="mt-5 text-lg text-muted-foreground text-balance max-w-2xl mx-auto">
+          <p className="mt-3 text-base sm:text-lg text-muted-foreground text-balance max-w-2xl mx-auto">
             From everyday math to taxes, health, finance, and advanced scientific calculations.
             Get accurate answers instantly — with step-by-step explanations.
           </p>
 
           {/* Big search */}
-          <div className="mt-7 max-w-xl mx-auto">
+          <div className="mt-6 max-w-xl mx-auto">
             <Popover open={searchOpen && query.length > 0} onOpenChange={setSearchOpen}>
               <PopoverTrigger asChild>
                 <div className="relative">
@@ -80,7 +86,7 @@ export function HomePage() {
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
                     placeholder="Search 170+ calculators — try 'mortgage', 'BMI', 'tax US'…"
-                    className="pl-12 h-14 rounded-2xl text-base shadow-sm"
+                    className="pl-12 h-12 rounded-2xl text-base shadow-sm"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && searchResults[0]) {
                         openCalc(searchResults[0].id);
@@ -116,7 +122,7 @@ export function HomePage() {
           </div>
 
           {/* Popular shortcuts */}
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
             {["Percentage", "BMI", "Income Tax", "Age", "Loan", "SIP", "Word Counter", "Timer"].map(name => {
               const map: Record<string, string> = {
                 "Percentage": "percentage", "BMI": "bmi", "Income Tax": "tax-us",
@@ -134,19 +140,6 @@ export function HomePage() {
               );
             })}
           </div>
-        </div>
-      </section>
-
-      {/* UNIVERSAL CALCULATOR (above Popular calculators) */}
-      <section>
-        <div className="flex items-end justify-between mb-5">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Universal Calculator</h2>
-            <p className="text-muted-foreground mt-1 text-sm">Basic, scientific, programmer, fraction, statistics, graphing — all in one workspace.</p>
-          </div>
-        </div>
-        <div className="rounded-3xl border border-border bg-background p-3 sm:p-5 shadow-sm">
-          <UniversalCalculator />
         </div>
       </section>
 
